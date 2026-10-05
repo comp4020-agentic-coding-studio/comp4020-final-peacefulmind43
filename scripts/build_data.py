@@ -60,7 +60,7 @@ def main() -> None:
     months = sorted(set(momentum) & set(factors))
     OUT.parent.mkdir(exist_ok=True)
     with OUT.open("w", newline="") as f:
-        out = csv.writer(f)
+        out = csv.writer(f, lineterminator="\n")
         out.writerow(["month", "momentum", "market", "rf"])
         for ym in months:
             hi = momentum[ym][-1]  # "Hi PRIOR", the top decile
