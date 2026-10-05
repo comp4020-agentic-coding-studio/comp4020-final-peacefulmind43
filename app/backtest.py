@@ -130,9 +130,10 @@ class Result:
     volatility: float
     sharpe: float  # annualised
     max_drawdown: float
-    sr_monthly: float  # per-month Sharpe ratio, for the luck discount
+    sr_monthly: float  # per-month Sharpe ratio
     skewness: float
     kurtosis: float  # not excess: 3 for a normal distribution
+    excess: list[float]  # monthly return over the T-bill, percent
 
 
 def backtest(rule: Rule, months: list[Month], start: str, end: str) -> Result:
@@ -186,7 +187,32 @@ def backtest(rule: Rule, months: list[Month], start: str, end: str) -> Result:
         sr_monthly=sr_monthly,
         skewness=skewness,
         kurtosis=kurtosis,
+        excess=excess,
     )
+
+
+@dataclass(frozen=True)
+class Timing:
+    """What a rule adds over always holding 1x (ADR 0005)."""
+
+    sr_monthly: float
+    skewness: float
+    kurtosis: float
+    beta: float
+
+
+def timing(excess: list[float], baseline: list[float]) -> Timing:
+    """Regress the rule's monthly excess returns on the baseline's and judge
+    what is left: the series x - beta * b."""
+    if len(excess) != len(baseline) or len(excess) < 3:
+        raise ValueError("timing needs the rule and the baseline over the same months")
+    mx, mb = _mean(excess), _mean(baseline)
+    var_b = sum((b - mb) ** 2 for b in baseline)
+    beta = sum((b - mb) * (x - mx) for x, b in zip(excess, baseline)) / var_b
+    series = [x - beta * b for x, b in zip(excess, baseline)]
+    sd = _sd(series)
+    skewness, kurtosis = _shape(series)
+    return Timing(_mean(series) / sd if sd > 0 else 0.0, skewness, kurtosis, beta)
 
 
 def _mean(xs: list[float]) -> float:

@@ -16,10 +16,10 @@
   </ul>
   <p class="luck" data-field="luck_text">
     {% if round.luck_bar is not none %}
-    The luck bar is <strong>{{ "%.2f" | format(round.luck_bar) }}</strong>: with this many different rules tried,
-    the best one would reach a Sharpe ratio about this high by luck alone.
+    The luck bar is <strong>{{ "%.2f" | format(round.luck_bar) }}</strong>: with {{ round.timing_rules }} different timing rules tried,
+    the best one would seem to add about this much by luck alone.
     {% else %}
-    The luck bar appears once two different rules have been tried.
+    The luck bar appears once two different timing rules have been tried.
     {% endif %}
   </p>
   <p class="live-status" data-field="status" aria-live="polite"></p>
@@ -68,9 +68,11 @@
       These costs are rough allowances, not measurements. If the money ever runs out, it stays at zero.</p>
     <p>The portfolio is the top 10% of US stocks by their return over the previous year (skipping the last month),
       weighted by company size. It is similar in spirit to a momentum fund, but it is not any real fund.</p>
-    <p>"Chance it beats luck" is the deflated Sharpe ratio (Bailey and López de Prado, 2014): the probability that
-      a rule's true Sharpe ratio is above zero, after allowing for how many different rules this room has tried,
-      how much their results differ, and how lopsided and fat-tailed the returns are.</p>
+    <p>"Chance the timing helps" asks whether a rule does anything beyond holding more or less of the portfolio.
+      Borrowing to hold 2× is the same bet, twice as big, so "always" rules have no timing to judge. For the other rules,
+      the part of their monthly returns that holding can't explain is judged with the deflated Sharpe ratio
+      (Bailey and López de Prado, 2014): the probability that it is really above zero, after allowing for how many
+      timing rules this room has tried, how much their results differ, and how lopsided and fat-tailed the returns are.</p>
   </details>
 </section>
 
@@ -83,8 +85,8 @@
     <li><span>Growth per year</span> <strong>{{ pct(mine.stats.cagr) }}</strong></li>
     <li><span>Worst fall from a high</span> <strong>{{ pct(mine.stats.max_drawdown, 0) }}</strong></li>
     <li><span>Sharpe ratio</span> <strong>{{ "%.2f" | format(mine.stats.sharpe) }}</strong></li>
-    <li><span>Chance it beats luck</span>
-      <strong data-confidence-for="{{ mine.id }}">{% if mine.confidence is not none %}{{ pct(mine.confidence, 0) }}{% else %}not yet{% endif %}</strong></li>
+    <li><span>Chance the timing helps</span>
+      <strong data-confidence-for="{{ mine.id }}">{% if mine.confidence is not none %}{{ pct(mine.confidence, 0) }}{% elif mine.rule.type == "fixed" %}no timing{% else %}not yet{% endif %}</strong></li>
   </ul>
   <figure>
     <svg viewBox="0 0 {{ mine.chart.width }} {{ mine.chart.height }}" role="img"
@@ -94,7 +96,7 @@
     </svg>
     <figcaption>Value over time, {{ start_year }} to {{ end_year }}, on a log scale. The dashed line is the starting amount.</figcaption>
   </figure>
-  <p class="note">The chance it beats luck changes as the room tries more rules. It is a statement about the past, not advice.</p>
+  <p class="note">The chance the timing helps changes as the room tries more timing rules. It is a statement about the past, not advice.</p>
 </section>
 {% endif %}
 
@@ -107,7 +109,7 @@
   <div class="table-wrap" {% if not trials %}hidden{% endif %}>
   <table>
     <thead><tr><th scope="col">Who</th><th scope="col">Rule</th><th scope="col">Growth per year</th>
-      <th scope="col">Worst fall</th><th scope="col">Sharpe</th><th scope="col">Chance it beats luck</th><th scope="col">When</th></tr></thead>
+      <th scope="col">Worst fall</th><th scope="col">Sharpe</th><th scope="col">Chance the timing helps</th><th scope="col">When</th></tr></thead>
     <tbody data-field="rows">
     {% for t in trials %}
       <tr data-trial-id="{{ t.id }}"{% if t.is_me %} class="me"{% endif %}>

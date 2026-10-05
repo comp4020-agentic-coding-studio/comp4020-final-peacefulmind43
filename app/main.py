@@ -9,6 +9,7 @@ import math
 import secrets
 import time
 from contextlib import asynccontextmanager
+from functools import lru_cache
 from pathlib import Path
 
 import markdown
@@ -18,7 +19,17 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from . import db
-from .backtest import LEVERAGES, TREND_MONTHS, VOL_LOOKBACKS, VOL_TARGETS, Rule, backtest, load_months, parse_rule
+from .backtest import (
+    LEVERAGES,
+    TREND_MONTHS,
+    VOL_LOOKBACKS,
+    VOL_TARGETS,
+    Rule,
+    backtest,
+    load_months,
+    parse_rule,
+    timing,
+)
 from .luck import deflated_sharpe, luck_bar, sample_variance
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -30,6 +41,13 @@ COOKIE = "visitor"
 IN_SAMPLE = ("1927-01", "2015-12")
 
 MONTHS = load_months()
+
+
+@lru_cache(maxsize=8)
+def baseline_excess(start: str, end: str) -> tuple[float, ...]:
+    """Monthly excess returns of always holding 1x: what timing is judged
+    against (ADR 0005)."""
+    return tuple(backtest(Rule("fixed", 1.0), MONTHS, start, end).excess)
 
 
 def ensure_open_round() -> None:
@@ -83,11 +101,14 @@ def current_round(conn) -> dict:
         raise HTTPException(503, "There is no open round.")
     count = conn.execute("SELECT count(*) FROM trials WHERE round_id = ?", (row["id"],)).fetchone()[0]
     visitors = conn.execute("SELECT count(DISTINCT visitor_id) FROM trials WHERE round_id = ?", (row["id"],)).fetchone()[0]
-    # one Sharpe ratio per distinct rule: repeats of a rule give the same figure
+    rules = conn.execute("SELECT count(DISTINCT rule_key) FROM trials WHERE round_id = ?", (row["id"],)).fetchone()[0]
+    # one timing figure per distinct timing rule: repeats give the same figure,
+    # and fixed leverage has no timing to judge (ADR 0005)
     srs = [
         r[0]
         for r in conn.execute(
-            "SELECT min(sr_monthly) FROM trials WHERE round_id = ? GROUP BY rule_key", (row["id"],)
+            "SELECT min(timing_sr) FROM trials WHERE round_id = ? AND rule_type IN ('vol', 'trend') GROUP BY rule_key",
+            (row["id"],),
         )
     ]
     bar = luck_bar(len(srs), sample_variance(srs))
@@ -98,7 +119,8 @@ def current_round(conn) -> dict:
         "in_sample_end": row["in_sample_end"],
         "trial_count": count,
         "visitor_count": visitors,
-        "distinct_rules": len(srs),
+        "distinct_rules": rules,
+        "timing_rules": len(srs),
         "luck_bar": bar * math.sqrt(12) if bar is not None else None,
         "revealed": row["revealed_at"] is not None,
         "_luck_bar_monthly": bar,
@@ -113,8 +135,8 @@ def trial_summary(row, rnd: dict) -> dict:
     rule = Rule(**json.loads(row["rule_params"]))
     bar = rnd["_luck_bar_monthly"]
     confidence = (
-        deflated_sharpe(row["sr_monthly"], bar, row["n_months"], row["skewness"], row["kurtosis"])
-        if bar is not None
+        deflated_sharpe(row["timing_sr"], bar, row["n_months"], row["timing_skewness"], row["timing_kurtosis"])
+        if bar is not None and rule.type != "fixed"
         else None
     )
     return {
@@ -272,10 +294,16 @@ async def run_trial(request: Request):
     with db.connect() as conn:
         rnd = current_round(conn)
         result = backtest(rule, MONTHS, rnd["in_sample_start"], rnd["in_sample_end"])
+        t = (
+            timing(result.excess, list(baseline_excess(rnd["in_sample_start"], rnd["in_sample_end"])))
+            if rule.type != "fixed"
+            else None
+        )
         cur = conn.execute(
             """INSERT INTO trials (round_id, visitor_id, leverage, cagr, volatility, sharpe, max_drawdown, curve,
-                                   created_at, rule_type, rule_key, rule_params, sr_monthly, skewness, kurtosis, n_months)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                                   created_at, rule_type, rule_key, rule_params, sr_monthly, skewness, kurtosis, n_months,
+                                   timing_sr, timing_skewness, timing_kurtosis, timing_beta)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 rnd["id"],
                 me,
@@ -293,6 +321,10 @@ async def run_trial(request: Request):
                 result.skewness,
                 result.kurtosis,
                 len(result.curve),
+                t.sr_monthly if t else None,
+                t.skewness if t else None,
+                t.kurtosis if t else None,
+                t.beta if t else None,
             ),
         )
         trial_id = cur.lastrowid

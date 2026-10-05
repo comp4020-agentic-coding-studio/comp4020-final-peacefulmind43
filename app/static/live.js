@@ -21,10 +21,10 @@
     if (luck) {
       luck.replaceChildren();
       if (r.luck_bar === null) {
-        luck.append("The luck bar appears once two different rules have been tried.");
+        luck.append("The luck bar appears once two different timing rules have been tried.");
       } else {
         luck.append("The luck bar is ", text("strong", r.luck_bar.toFixed(2)),
-          ": with this many different rules tried, the best one would reach a Sharpe ratio about this high by luck alone.");
+          `: with ${r.timing_rules} different timing rules tried, the best one would seem to add about this much by luck alone.`);
       }
     }
   }
@@ -66,7 +66,7 @@
     if (empty) empty.hidden = trials.length > 0 || hidden > 0;
     for (const t of trials) {
       const mine = document.querySelector(`[data-confidence-for="${t.id}"]`);
-      if (mine) mine.textContent = t.confidence === null ? "not yet" : pct(t.confidence, 0);
+      if (mine) mine.textContent = t.confidence !== null ? pct(t.confidence, 0) : t.rule.type === "fixed" ? "no timing" : "not yet";
     }
   }
 
