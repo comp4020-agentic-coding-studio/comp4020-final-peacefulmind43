@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block main %}
+<h1>Would borrowing have helped?</h1>
+<p class="lead">This room tests simple rules on top of a momentum stock portfolio, the kind of strategy
+  a momentum fund follows. Pick a rule, see how it would have done, and see what everyone else has tried.
+  Every test anyone runs is kept, because the more rules a room tries, the more likely one looks good by luck.</p>
+
+<section class="round" aria-labelledby="round-heading">
+  <h2 id="round-heading">{{ round.name }}</h2>
+  <p>Tests use {{ start_year }} to {{ end_year }}. Everything after {{ end_year }} stays locked until this round is revealed.</p>
+  <p class="count"><strong>{{ round.trial_count }}</strong> test{{ "" if round.trial_count == 1 else "s" }} run in this round so far.</p>
+</section>
+
+<section aria-labelledby="try-heading">
+  <h2 id="try-heading">Run a test</h2>
+  <form method="post" action="/trials">
+    <fieldset>
+      <legend>How much would you hold in the portfolio, for each dollar you own?</legend>
+      {% for lev in leverages %}
+      <label class="choice">
+        <input type="radio" name="leverage" value="{{ lev }}" {% if loop.first %}checked{% endif %}>
+        <span>{{ "%g" | format(lev) }}×</span>
+        <small>{% if lev == 1 %}just your own money{% else %}borrow {{ "%g" | format((lev - 1) * 100) }}% of what you own{% endif %}</small>
+      </label>
+      {% endfor %}
+    </fieldset>
+    <button type="submit">Run this test</button>
+  </form>
+  <details>
+    <summary>How a test works</summary>
+    <p>Each month, the portfolio is reset to the chosen multiple of your money. Borrowed money costs the
+      one-month US Treasury bill rate plus 1.5% a year. If the money ever runs out, it stays at zero.
+      The portfolio is the top 10% of US stocks by their return over the previous year (skipping the last month),
+      weighted by company size. It is similar in spirit to a momentum fund, but it is not any real fund.</p>
+  </details>
+</section>
+
+{% if mine %}
+<section id="result" class="result" aria-labelledby="result-heading">
+  <h2 id="result-heading">Your test: {{ "%g" | format(mine.leverage) }}×</h2>
+  <p>$10,000 at the start of {{ start_year }} would have become
+    <strong>${{ "{:,.0f}".format(mine.final * 10000) }}</strong> by the end of {{ end_year }}.</p>
+  <ul class="stats">
+    <li><span>Growth per year</span> <strong>{{ "%.1f" | format(mine.stats.cagr * 100) }}%</strong></li>
+    <li><span>Worst fall from a high</span> <strong>{{ "%.0f" | format(mine.stats.max_drawdown * 100) }}%</strong></li>
+    <li><span>Return per unit of risk (Sharpe)</span> <strong>{{ "%.2f" | format(mine.stats.sharpe) }}</strong></li>
+  </ul>
+  <figure>
+    <svg viewBox="0 0 {{ mine.chart.width }} {{ mine.chart.height }}" role="img"
+         aria-label="Value of the money over time, on a log scale">
+      <line x1="0" x2="{{ mine.chart.width }}" y1="{{ mine.chart.baseline }}" y2="{{ mine.chart.baseline }}" class="base"/>
+      <polyline points="{{ mine.chart.points }}" class="curve"/>
+    </svg>
+    <figcaption>Value over time, {{ start_year }} to {{ end_year }}, on a log scale. The flat line is the starting amount.</figcaption>
+  </figure>
+</section>
+{% endif %}
+
+<section aria-labelledby="all-heading">
+  <h2 id="all-heading">Every test in this round</h2>
+  {% if trials %}
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th scope="col">Who</th><th scope="col">Rule</th><th scope="col">Growth per year</th>
+      <th scope="col">Worst fall</th><th scope="col">Sharpe</th><th scope="col">When</th></tr></thead>
+    <tbody>
+    {% for t in trials %}
+      <tr data-trial-id="{{ t.id }}"{% if t.is_me %} class="me"{% endif %}>
+        <td>{{ t.visitor }}{% if t.is_me %} (you){% endif %}</td>
+        <td>{{ "%g" | format(t.leverage) }}× leverage</td>
+        <td>{{ "%.1f" | format(t.stats.cagr * 100) }}%</td>
+        <td>{{ "%.0f" | format(t.stats.max_drawdown * 100) }}%</td>
+        <td>{{ "%.2f" | format(t.stats.sharpe) }}</td>
+        <td>{{ t.ago }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <p>No tests yet. Yours will be the first.</p>
+  {% endif %}
+</section>
+{% endblock %}

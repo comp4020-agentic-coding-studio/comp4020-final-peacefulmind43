@@ -20,3 +20,8 @@ mise.local.toml
 # your course API key, and this repo goes public when you ship. Your tracked
 # harness is CLAUDE.md (and any AGENTS.md), not this directory.
 .claude/
+
+# Python: the local virtualenv, bytecode, and the local stand-in for /data
+.venv/
+__pycache__/
+.data/
