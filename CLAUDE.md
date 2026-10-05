@@ -43,5 +43,11 @@ supersedes it. Never edit an accepted record.
 
 `pnpm check` runs `spec/` against the running app (`APP_URL`, default
 `http://localhost:8080`). Run it before every commit that changes behaviour.
+
+**Never point `pnpm check` at the live app.** The spec runs trials, and trials
+are permanent, so every run against `*.fly.dev` adds test trials to the real
+room's count. Run it against a local app (`DATA_DIR=.data`) or let CI run it
+against its throwaway `/data`. Check the live app by reading it, not by
+writing to it.
 When the agent gets something wrong twice, add a check or a rule here instead of
 re-prompting.
