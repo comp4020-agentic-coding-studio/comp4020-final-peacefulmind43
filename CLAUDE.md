@@ -29,6 +29,11 @@ supersedes it. Never edit an accepted record.
 - **Statistics need a check against a known value.** Any new metric (Sharpe,
   drawdown, deflated Sharpe, financing cost) gets a test with a hand-checkable
   case before it is shown to anyone.
+- **A correct statistic can still answer the wrong question.** Before a new
+  figure goes on the page, run it over a spread of real rules and look at the
+  spread. If every rule gets the same answer (the first deflated Sharpe gave
+  every rule 100%), the question is wrong, even if the formula is right. Say
+  what question the figure answers in the ADR, in words a holder would ask.
 - **Schema changes are new migration files** in `app/migrations/`, numbered in
   order. Never edit a migration that has been committed.
 - **One process.** Real-time is broadcast inside one uvicorn process. Don't add
