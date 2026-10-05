@@ -11,6 +11,7 @@ export interface Round {
   in_sample_end: string;
   trial_count: number;
   distinct_rules: number;
+  timing_rules: number;
   luck_bar: number | null;
   revealed: boolean;
 }

@@ -113,3 +113,19 @@ export function moments(xs: number[]): { sr: number; skew: number; kurtosis: num
   const m = (k: number) => xs.reduce((a, b) => a + (b - mean) ** k, 0) / n;
   return { sr: mean / sampleSd(xs), skew: m(3) / m(2) ** 1.5, kurtosis: m(4) / m(2) ** 2 };
 }
+
+// ADR 0005: a timing rule's monthly excess returns `x`, regressed on the
+// baseline's `b` (always 1x). The timing series is x - beta * b.
+export function timingSeries(x: number[], b: number[]): number[] {
+  const n = x.length;
+  const mx = x.reduce((a, v) => a + v, 0) / n;
+  const mb = b.reduce((a, v) => a + v, 0) / n;
+  let cov = 0;
+  let varB = 0;
+  for (let i = 0; i < n; i++) {
+    cov += (b[i] - mb) * (x[i] - mx);
+    varB += (b[i] - mb) ** 2;
+  }
+  const beta = cov / varB;
+  return x.map((v, i) => v - beta * b[i]);
+}

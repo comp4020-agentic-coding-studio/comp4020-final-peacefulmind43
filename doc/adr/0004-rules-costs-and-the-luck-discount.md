@@ -1,6 +1,7 @@
 # 0004. Two overlay rules, trading costs, and the deflated Sharpe ratio
 
-Status: accepted (2026-10-06)
+Status: accepted (2026-10-06). The "luck discount" section is superseded by
+ADR 0005; the rules and costs stand.
 
 ## Context
 
