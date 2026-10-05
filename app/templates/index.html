@@ -1,49 +1,90 @@
 {% extends "base.html" %}
+{% macro pct(x, digits=1) %}{{ ("%." ~ digits ~ "f") | format(x * 100) }}%{% endmacro %}
 {% block main %}
-<h1>Would borrowing have helped?</h1>
+<h1>Would a rule have helped?</h1>
 <p class="lead">This room tests simple rules on top of a momentum stock portfolio, the kind of strategy
-  a momentum fund follows. Pick a rule, see how it would have done, and see what everyone else has tried.
-  Every test anyone runs is kept, because the more rules a room tries, the more likely one looks good by luck.</p>
+  a momentum fund follows. Pick a rule and see how it would have done. Every test anyone runs is kept,
+  because the more rules a room tries, the more likely one looks good by luck.</p>
 
-<section class="round" aria-labelledby="round-heading">
+<section class="round" aria-labelledby="round-heading" data-live="round">
   <h2 id="round-heading">{{ round.name }}</h2>
   <p>Tests use {{ start_year }} to {{ end_year }}. Everything after {{ end_year }} stays locked until this round is revealed.</p>
-  <p class="count"><strong>{{ round.trial_count }}</strong> test{{ "" if round.trial_count == 1 else "s" }} run in this round so far.</p>
+  <ul class="room-stats">
+    <li><strong data-field="trial_count">{{ round.trial_count }}</strong> tests</li>
+    <li><strong data-field="distinct_rules">{{ round.distinct_rules }}</strong> different rules</li>
+    <li><strong data-field="visitor_count">{{ round.visitor_count }}</strong> people</li>
+  </ul>
+  <p class="luck" data-field="luck_text">
+    {% if round.luck_bar is not none %}
+    The luck bar is <strong>{{ "%.2f" | format(round.luck_bar) }}</strong>: with this many different rules tried,
+    the best one would reach a Sharpe ratio about this high by luck alone.
+    {% else %}
+    The luck bar appears once two different rules have been tried.
+    {% endif %}
+  </p>
+  <p class="live-status" data-field="status" aria-live="polite"></p>
 </section>
 
 <section aria-labelledby="try-heading">
   <h2 id="try-heading">Run a test</h2>
-  <form method="post" action="/trials">
+  <form method="post" action="/trials" class="rule-form">
     <fieldset>
-      <legend>How much would you hold in the portfolio, for each dollar you own?</legend>
-      {% for lev in leverages %}
-      <label class="choice">
-        <input type="radio" name="leverage" value="{{ lev }}" {% if loop.first %}checked{% endif %}>
-        <span>{{ "%g" | format(lev) }}×</span>
-        <small>{% if lev == 1 %}just your own money{% else %}borrow {{ "%g" | format((lev - 1) * 100) }}% of what you own{% endif %}</small>
-      </label>
+      <legend>Pick a rule</legend>
+      <label class="choice"><input type="radio" name="rule" value="fixed" checked>
+        <span>Always hold the same amount</span></label>
+      <label class="choice"><input type="radio" name="rule" value="vol">
+        <span>Hold less when the portfolio has been jumpy</span>
+        <small>Aim for
+          <select name="target" aria-label="Volatility to aim for">
+            {% for v in menu.vol_targets %}<option value="{{ v }}" {% if v == 15 %}selected{% endif %}>{{ v }}%</option>{% endfor %}
+          </select> volatility a year, judged on the last
+          <select name="lookback" aria-label="Months to judge volatility on">
+            {% for v in menu.vol_lookbacks %}<option value="{{ v }}">{{ v }}</option>{% endfor %}
+          </select> months</small></label>
+      <label class="choice"><input type="radio" name="rule" value="trend">
+        <span>Step out to cash when the market is falling</span>
+        <small>Out while the market is below its
+          <select name="months" aria-label="Months in the market average">
+            {% for v in menu.trend_months %}<option value="{{ v }}" {% if v == 10 %}selected{% endif %}>{{ v }}</option>{% endfor %}
+          </select>-month average</small></label>
+    </fieldset>
+    <fieldset>
+      <legend>At most how much, for each dollar you own?</legend>
+      <div class="leverage-row">
+      {% for lev in menu.leverages %}
+        <label class="pill"><input type="radio" name="leverage" value="{{ lev }}" {% if loop.first %}checked{% endif %}>
+          <span>{{ "%g" | format(lev) }}×</span></label>
       {% endfor %}
+      </div>
+      <small>Above 1× means borrowing. 2× borrows as much as you own.</small>
     </fieldset>
     <button type="submit">Run this test</button>
   </form>
   <details>
     <summary>How a test works</summary>
-    <p>Each month, the portfolio is reset to the chosen multiple of your money. Borrowed money costs the
-      one-month US Treasury bill rate plus 1.5% a year. If the money ever runs out, it stays at zero.
-      The portfolio is the top 10% of US stocks by their return over the previous year (skipping the last month),
+    <p>At the end of each month, the rule decides how much to hold next month, using only what was known then.
+      Money not in the portfolio earns the one-month US Treasury bill rate; borrowed money costs that rate plus 1.5% a year.
+      Holding the portfolio costs 1% a year, and changing how much you hold costs 0.1% of the amount moved.
+      These costs are rough allowances, not measurements. If the money ever runs out, it stays at zero.</p>
+    <p>The portfolio is the top 10% of US stocks by their return over the previous year (skipping the last month),
       weighted by company size. It is similar in spirit to a momentum fund, but it is not any real fund.</p>
+    <p>"Chance it beats luck" is the deflated Sharpe ratio (Bailey and López de Prado, 2014): the probability that
+      a rule's true Sharpe ratio is above zero, after allowing for how many different rules this room has tried,
+      how much their results differ, and how lopsided and fat-tailed the returns are.</p>
   </details>
 </section>
 
 {% if mine %}
 <section id="result" class="result" aria-labelledby="result-heading">
-  <h2 id="result-heading">Your test: {{ "%g" | format(mine.leverage) }}×</h2>
+  <h2 id="result-heading">Your test: {{ mine.rule.label }}</h2>
   <p>$10,000 at the start of {{ start_year }} would have become
     <strong>${{ "{:,.0f}".format(mine.final * 10000) }}</strong> by the end of {{ end_year }}.</p>
   <ul class="stats">
-    <li><span>Growth per year</span> <strong>{{ "%.1f" | format(mine.stats.cagr * 100) }}%</strong></li>
-    <li><span>Worst fall from a high</span> <strong>{{ "%.0f" | format(mine.stats.max_drawdown * 100) }}%</strong></li>
-    <li><span>Return per unit of risk (Sharpe)</span> <strong>{{ "%.2f" | format(mine.stats.sharpe) }}</strong></li>
+    <li><span>Growth per year</span> <strong>{{ pct(mine.stats.cagr) }}</strong></li>
+    <li><span>Worst fall from a high</span> <strong>{{ pct(mine.stats.max_drawdown, 0) }}</strong></li>
+    <li><span>Sharpe ratio</span> <strong>{{ "%.2f" | format(mine.stats.sharpe) }}</strong></li>
+    <li><span>Chance it beats luck</span>
+      <strong data-confidence-for="{{ mine.id }}">{% if mine.confidence is not none %}{{ pct(mine.confidence, 0) }}{% else %}not yet{% endif %}</strong></li>
   </ul>
   <figure>
     <svg viewBox="0 0 {{ mine.chart.width }} {{ mine.chart.height }}" role="img"
@@ -51,34 +92,38 @@
       <line x1="0" x2="{{ mine.chart.width }}" y1="{{ mine.chart.baseline }}" y2="{{ mine.chart.baseline }}" class="base"/>
       <polyline points="{{ mine.chart.points }}" class="curve"/>
     </svg>
-    <figcaption>Value over time, {{ start_year }} to {{ end_year }}, on a log scale. The flat line is the starting amount.</figcaption>
+    <figcaption>Value over time, {{ start_year }} to {{ end_year }}, on a log scale. The dashed line is the starting amount.</figcaption>
   </figure>
+  <p class="note">The chance it beats luck changes as the room tries more rules. It is a statement about the past, not advice.</p>
 </section>
 {% endif %}
 
 <section aria-labelledby="all-heading">
-  <h2 id="all-heading">Every test in this round</h2>
-  {% if trials %}
-  <div class="table-wrap">
+  <h2 id="all-heading">{% if unlocked %}Every test in this round{% else %}Tests in this round{% endif %}</h2>
+  <p class="locked" data-field="locked" {% if unlocked or hidden == 0 %}hidden{% endif %}>
+    <strong data-field="hidden">{{ hidden }}</strong> tests by other people are hidden until you run a test of your own.
+    That way your first idea is yours, not a reaction to what looks good so far.
+  </p>
+  <div class="table-wrap" {% if not trials %}hidden{% endif %}>
   <table>
     <thead><tr><th scope="col">Who</th><th scope="col">Rule</th><th scope="col">Growth per year</th>
-      <th scope="col">Worst fall</th><th scope="col">Sharpe</th><th scope="col">When</th></tr></thead>
-    <tbody>
+      <th scope="col">Worst fall</th><th scope="col">Sharpe</th><th scope="col">Chance it beats luck</th><th scope="col">When</th></tr></thead>
+    <tbody data-field="rows">
     {% for t in trials %}
       <tr data-trial-id="{{ t.id }}"{% if t.is_me %} class="me"{% endif %}>
         <td>{{ t.visitor }}{% if t.is_me %} (you){% endif %}</td>
-        <td>{{ "%g" | format(t.leverage) }}× leverage</td>
-        <td>{{ "%.1f" | format(t.stats.cagr * 100) }}%</td>
-        <td>{{ "%.0f" | format(t.stats.max_drawdown * 100) }}%</td>
+        <td>{{ t.rule.label }}</td>
+        <td>{{ pct(t.stats.cagr) }}</td>
+        <td>{{ pct(t.stats.max_drawdown, 0) }}</td>
         <td>{{ "%.2f" | format(t.stats.sharpe) }}</td>
+        <td>{% if t.confidence is not none %}{{ pct(t.confidence, 0) }}{% else %}–{% endif %}</td>
         <td>{{ t.ago }}</td>
       </tr>
     {% endfor %}
     </tbody>
   </table>
   </div>
-  {% else %}
-  <p>No tests yet. Yours will be the first.</p>
-  {% endif %}
+  {% if not trials and hidden == 0 %}<p data-field="empty">No tests yet. Yours will be the first.</p>{% endif %}
 </section>
+<script src="/static/live.js" defer></script>
 {% endblock %}
