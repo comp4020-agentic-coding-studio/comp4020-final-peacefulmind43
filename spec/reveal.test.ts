@@ -77,6 +77,10 @@ it.runIf(key)("reveals a round: live to open pages, in public, and against an in
     else expect(typeof found.hold_out.timing_added).toBe("number");
   }
 
+  // someone coming back the next day finds the way to the results
+  const home = await (await fetch(url("/"), { headers: { cookie: cookie! } })).text();
+  expect(home).toContain(`href="/rounds/${before.id}"`);
+
   const page = await (await fetch(url(`/rounds/${before.id}`))).text();
   for (const r of revealed.rules) expect(page).toContain(r.rule.label);
 

@@ -11,6 +11,10 @@
   <p>Tests use {{ start_year }} to {{ end_year }}. Everything after {{ end_year }} stays locked until this round is revealed
     on <strong data-field="reveal_text">{{ round.reveal_text }}</strong>.</p>
   <p class="revealed-banner" data-field="revealed" hidden></p>
+  {% if last_revealed %}
+  <p class="last-round">{{ last_revealed.name }} has been revealed:
+    <a href="/rounds/{{ last_revealed.id }}">see how every rule did in the locked years</a>.</p>
+  {% endif %}
   <ul class="room-stats">
     <li><strong data-field="trial_count">{{ round.trial_count }}</strong> tests</li>
     <li><strong data-field="distinct_rules">{{ round.distinct_rules }}</strong> different rules</li>

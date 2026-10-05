@@ -310,6 +310,7 @@ async def home(request: Request, trial: int | None = None):
             if row is not None:
                 curve = json.loads(row["curve"])
                 mine = {**trial_summary(row, rnd), "final": curve[-1][1], "chart": sparkline(curve)}
+        last = conn.execute("SELECT id, name FROM rounds WHERE revealed_at IS NOT NULL ORDER BY id DESC LIMIT 1").fetchone()
         activity.record(conn, "visit", me, rnd["id"], {"locked": not unlocked, "hidden": hidden})
     trials = [
         {**trial_summary(r, rnd), "ago": ago(r["created_at"]), "is_me": me is not None and r["visitor_id"] == me}
@@ -326,6 +327,7 @@ async def home(request: Request, trial: int | None = None):
             "hidden": hidden,
             "unlocked": unlocked,
             "mine": mine,
+            "last_revealed": dict(last) if last else None,
             "menu": {
                 "leverages": LEVERAGES,
                 "vol_targets": VOL_TARGETS,

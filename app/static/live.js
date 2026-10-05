@@ -75,6 +75,18 @@
     if (res.ok) drawTrials(await res.json());
   }
 
+  // Choosing a setting for a rule (a volatility target, a number of months)
+  // means choosing that rule. Without this, changing a dropdown left the
+  // radio on the old rule, and the test ran something else.
+  for (const select of document.querySelectorAll(".rule-form .choice select")) {
+    const pick = () => {
+      const radio = select.closest(".choice").querySelector('input[type="radio"]');
+      if (radio) radio.checked = true;
+    };
+    select.addEventListener("change", pick);
+    select.addEventListener("focus", pick);
+  }
+
   if (!("EventSource" in window)) return;
   const status = $("status");
   const stream = new EventSource("/events");
