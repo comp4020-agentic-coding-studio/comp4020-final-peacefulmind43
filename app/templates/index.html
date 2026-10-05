@@ -8,7 +8,9 @@
 
 <section class="round" aria-labelledby="round-heading" data-live="round">
   <h2 id="round-heading">{{ round.name }}</h2>
-  <p>Tests use {{ start_year }} to {{ end_year }}. Everything after {{ end_year }} stays locked until this round is revealed.</p>
+  <p>Tests use {{ start_year }} to {{ end_year }}. Everything after {{ end_year }} stays locked until this round is revealed
+    on <strong data-field="reveal_text">{{ round.reveal_text }}</strong>.</p>
+  <p class="revealed-banner" data-field="revealed" hidden></p>
   <ul class="room-stats">
     <li><strong data-field="trial_count">{{ round.trial_count }}</strong> tests</li>
     <li><strong data-field="distinct_rules">{{ round.distinct_rules }}</strong> different rules</li>

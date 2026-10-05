@@ -87,6 +87,23 @@
     drawRound(JSON.parse(e.data));
     refreshTrials();
   });
+  stream.addEventListener("reveal", (e) => {
+    const { revealed_round_id: id, round } = JSON.parse(e.data);
+    drawRound(round);
+    const reveal = $("reveal_text");
+    if (reveal) reveal.textContent = round.reveal_text;
+    const heading = document.getElementById("round-heading");
+    if (heading) heading.textContent = round.name;
+    const banner = $("revealed");
+    if (banner) {
+      const link = document.createElement("a");
+      link.href = `/rounds/${id}`;
+      link.textContent = "See how every rule did in the locked years";
+      banner.replaceChildren("The last round was just revealed, and a new one has opened. ", link, ".");
+      banner.hidden = false;
+    }
+    refreshTrials();
+  });
   stream.onerror = () => {
     if (status) status.textContent = "Reconnecting…";
   };

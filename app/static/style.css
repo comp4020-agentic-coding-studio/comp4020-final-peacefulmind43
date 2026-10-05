@@ -115,3 +115,9 @@ fieldset > small { color: var(--muted); }
 .log .when { color: var(--muted); font-size: 0.85rem; }
 .log li.me { background: var(--me); }
 .log li.log-test .what { color: var(--accent); }
+
+.revealed-banner { background: var(--me); padding: 0.5rem 0.75rem; border-left: 4px solid #f0b400; }
+.headline { font-size: 1.1rem; }
+table.reveal th[scope="colgroup"] { text-align: center; border-bottom: 1px solid var(--line); }
+table.reveal tr.baseline { background: var(--paper); }
+.round-list li { margin: 0.4rem 0; }

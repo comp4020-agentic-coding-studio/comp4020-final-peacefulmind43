@@ -65,6 +65,9 @@ def describe(kind: str, detail: dict, full: bool) -> str:
         "watch_start": "came into the room",
         "watch_end": f"left the room after {detail.get('seconds', 0)} s",
         "readme": "read the About page",
+        "reveal": (
+            "revealed the round early (operator key)" if detail.get("early") else "revealed the round on schedule"
+        ),
     }[kind]
 
 
@@ -76,7 +79,7 @@ def view(row, viewer: str | None, viewer_round: int | None) -> dict:
     out = {
         "id": row["id"],
         "at": row["at"],
-        "visitor": visitor_label(row["visitor_id"]),
+        "visitor": "The room" if row["kind"] == "reveal" else visitor_label(row["visitor_id"]),
         "event": row["kind"],
         "text": describe(row["kind"], detail, full),
     }

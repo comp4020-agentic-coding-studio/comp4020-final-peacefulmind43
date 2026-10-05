@@ -2,9 +2,11 @@
 everyone's tests once you've run your own."""
 
 import asyncio
+import hmac
 import html
 import json
 import math
+import os
 import secrets
 import time
 from contextlib import asynccontextmanager
@@ -17,7 +19,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Stre
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from . import activity, db
+from . import activity, db, reveal
 from .activity import visitor_label
 from .backtest import (
     LEVERAGES,
@@ -50,22 +52,62 @@ def baseline_excess(start: str, end: str) -> tuple[float, ...]:
     return tuple(backtest(Rule("fixed", 1.0), MONTHS, start, end).excess)
 
 
-def ensure_open_round() -> None:
+def ensure_open_round(conn) -> None:
+    """There is always exactly one open round, with its reveal time set when
+    it opens (ADR 0007)."""
+    now = int(time.time())
+    open_row = conn.execute("SELECT * FROM rounds WHERE revealed_at IS NULL AND closed_at IS NULL").fetchone()
+    if open_row is not None:
+        if open_row["reveal_at"] is None:  # a round opened before reveals existed
+            conn.execute("UPDATE rounds SET reveal_at = ? WHERE id = ?", (reveal.next_reveal(now), open_row["id"]))
+        return
+    n = conn.execute("SELECT count(*) FROM rounds").fetchone()[0] + 1
+    conn.execute(
+        """INSERT INTO rounds (name, in_sample_start, in_sample_end, hold_out_end, created_at, reveal_at)
+           VALUES (?, ?, ?, ?, ?, ?)""",
+        (f"Round {n}", *IN_SAMPLE, MONTHS[-1].month, now, reveal.next_reveal(now)),
+    )
+
+
+def reveal_round(conn, round_id: int, early: bool) -> dict:
+    """Reveal a round, open the next one, and tell every open page."""
+    conn.execute("UPDATE rounds SET revealed_at = ? WHERE id = ? AND revealed_at IS NULL", (int(time.time()), round_id))
+    ensure_open_round(conn)
+    activity.record(conn, "reveal", None, round_id, {"round_id": round_id, "early": early})
+    new_round = public_round(current_round(conn))
+    for queue, _ in list(subscribers):
+        queue.put_nowait({"__event": "reveal", "revealed_round_id": round_id, "round": new_round})
+    return new_round
+
+
+def reveal_if_due() -> None:
     with db.connect() as conn:
-        if conn.execute("SELECT 1 FROM rounds WHERE revealed_at IS NULL AND closed_at IS NULL").fetchone():
-            return
-        n = conn.execute("SELECT count(*) FROM rounds").fetchone()[0] + 1
-        conn.execute(
-            "INSERT INTO rounds (name, in_sample_start, in_sample_end, hold_out_end, created_at) VALUES (?, ?, ?, ?, ?)",
-            (f"Round {n}", *IN_SAMPLE, MONTHS[-1].month, int(time.time())),
-        )
+        row = conn.execute(
+            "SELECT id FROM rounds WHERE revealed_at IS NULL AND closed_at IS NULL AND reveal_at <= ?",
+            (int(time.time()),),
+        ).fetchone()
+        if row is not None:
+            reveal_round(conn, row["id"], early=False)
+
+
+async def reveal_on_schedule() -> None:
+    while True:
+        try:
+            reveal_if_due()
+        except Exception as err:  # keep the room running; the next pass retries
+            print(json.dumps({"event": "reveal_error", "error": str(err)}), flush=True)
+        await asyncio.sleep(20)
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     db.migrate()
-    ensure_open_round()
+    with db.connect() as conn:
+        ensure_open_round(conn)
+    reveal_if_due()  # a machine that slept through a reveal catches up first
+    task = asyncio.create_task(reveal_on_schedule())
     yield
+    task.cancel()
 
 
 app = FastAPI(lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
@@ -93,6 +135,10 @@ def current_round(conn) -> dict:
     ).fetchone()
     if row is None:
         raise HTTPException(503, "There is no open round.")
+    return round_info(conn, row)
+
+
+def round_info(conn, row) -> dict:
     count = conn.execute("SELECT count(*) FROM trials WHERE round_id = ?", (row["id"],)).fetchone()[0]
     visitors = conn.execute("SELECT count(DISTINCT visitor_id) FROM trials WHERE round_id = ?", (row["id"],)).fetchone()[0]
     rules = conn.execute("SELECT count(DISTINCT rule_key) FROM trials WHERE round_id = ?", (row["id"],)).fetchone()[0]
@@ -117,6 +163,8 @@ def current_round(conn) -> dict:
         "timing_rules": len(srs),
         "luck_bar": bar * math.sqrt(12) if bar is not None else None,
         "revealed": row["revealed_at"] is not None,
+        "reveal_at": row["reveal_at"],
+        "reveal_text": reveal.reveal_text(row["reveal_at"]) if row["reveal_at"] else None,
         "_luck_bar_monthly": bar,
     }
 
@@ -204,7 +252,8 @@ async def events(request: Request):
             while True:
                 try:
                     data = await asyncio.wait_for(queue.get(), timeout=15)
-                    yield sse("update", data)
+                    kind = data.pop("__event", "update")
+                    yield sse(kind, data)
                 except asyncio.TimeoutError:
                     yield ": keep-alive\n\n"  # stops proxies closing a quiet stream
         finally:
@@ -452,6 +501,64 @@ def api_round_trials(request: Request):
         }
 
 
+def revealed_round(conn, round_id: int) -> dict:
+    row = conn.execute("SELECT * FROM rounds WHERE id = ?", (round_id,)).fetchone()
+    if row is None or row["revealed_at"] is None:
+        raise HTTPException(404, "That round hasn't been revealed.")
+    info = round_info(conn, row)
+    trials = conn.execute(
+        "SELECT * FROM trials WHERE round_id = ? AND rule_params IS NOT NULL ORDER BY id", (round_id,)
+    ).fetchall()
+    out = reveal.results(trials, lambda r: trial_summary(r, info)["confidence"], MONTHS, row)
+    return {**public_round(info), **out, "revealed_at": row["revealed_at"]}
+
+
+def revealed_rounds(conn) -> list[dict]:
+    rows = conn.execute("SELECT * FROM rounds WHERE revealed_at IS NOT NULL ORDER BY id DESC").fetchall()
+    return [public_round(round_info(conn, r)) for r in rows]
+
+
+@app.post("/api/rounds/current/reveal")
+def api_reveal_now(request: Request):
+    """Reveal the open round early (ADR 0007). Exists only when REVEAL_KEY is
+    set, and every use is logged publicly."""
+    expected = os.environ.get("REVEAL_KEY")
+    if not expected:
+        raise HTTPException(404, "Not found.")
+    given = request.headers.get("x-reveal-key", "")
+    if not hmac.compare_digest(given.encode(), expected.encode()):
+        raise HTTPException(403, "That key doesn't reveal anything.")
+    with db.connect() as conn:
+        old = current_round(conn)
+        new_round = reveal_round(conn, old["id"], early=True)
+    return {"revealed_round_id": old["id"], "round": new_round}
+
+
+@app.get("/api/rounds/{round_id}")
+def api_round(round_id: int):
+    with db.connect() as conn:
+        return revealed_round(conn, round_id)
+
+
+@app.get("/rounds", response_class=HTMLResponse)
+async def rounds_page(request: Request):
+    with db.connect() as conn:
+        past = revealed_rounds(conn)
+    return templates.TemplateResponse(request, "rounds.html", {"rounds": past})
+
+
+@app.get("/rounds/{round_id}", response_class=HTMLResponse)
+async def round_page(request: Request, round_id: int):
+    with db.connect() as conn:
+        rnd = revealed_round(conn, round_id)
+    return templates.TemplateResponse(
+        request,
+        "round.html",
+        {"r": rnd, "start_year": rnd["in_sample_start"][:4], "end_year": rnd["in_sample_end"][:4],
+         "hold_start_year": rnd["hold_out_start"][:4], "hold_end_year": rnd["hold_out_end"][:4]},
+    )
+
+
 @app.get("/api/trials/{trial_id}")
 def api_trial(request: Request, trial_id: int):
     me = request.cookies.get(COOKIE)
@@ -459,11 +566,14 @@ def api_trial(request: Request, trial_id: int):
         row = conn.execute("SELECT * FROM trials WHERE id = ?", (trial_id,)).fetchone()
         if row is None or row["rule_params"] is None:
             raise HTTPException(404, "No such trial.")
-        rnd = current_round(conn)
-        if row["round_id"] != rnd["id"]:
-            raise HTTPException(404, "That trial is from an earlier round.")
-        if row["visitor_id"] != me and not has_tested(conn, rnd["id"], me):
-            raise HTTPException(403, "Run a test of your own in this round to see other people's.")
+        round_row = conn.execute("SELECT * FROM rounds WHERE id = ?", (row["round_id"],)).fetchone()
+        rnd = round_info(conn, round_row)
+        if round_row["revealed_at"] is None:
+            if round_row["closed_at"] is not None:
+                raise HTTPException(404, "That trial is from a closed round.")
+            # an open round: ADR 0003
+            if row["visitor_id"] != me and not has_tested(conn, rnd["id"], me):
+                raise HTTPException(403, "Run a test of your own in this round to see other people's.")
         summary = trial_summary(row, rnd)
     curve = [{"month": m, "value": v} for m, v in json.loads(row["curve"])]
     return {**summary, "curve": curve}
