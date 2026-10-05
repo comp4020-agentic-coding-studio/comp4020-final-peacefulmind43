@@ -29,7 +29,8 @@ money borrowed costs the T-bill rate plus 1.5% a year (ADR 0002).
   level over the last 6, 10 or 12 months; otherwise hold cash.
 
 In the first months of the data, before a rule has its full lookback, it uses
-the history that exists; in the very first month every rule holds the cap.
+the history that exists; in the very first month every rule holds the cap, and
+the volatility target holds the cap until it has two months to measure.
 
 That is 72 possible rules (6 fixed, 48 volatility, 18 trend).
 

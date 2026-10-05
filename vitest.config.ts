@@ -6,5 +6,8 @@ export default defineConfig({
   test: {
     include: ["spec/**/*.test.ts"],
     globalSetup: ["./spec/global-setup.ts"],
+    // The files share one running app and its round, and several count trials
+    // or listen for live events, so they run one at a time.
+    fileParallelism: false,
   },
 });

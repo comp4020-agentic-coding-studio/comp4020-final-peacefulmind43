@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { currentRound, getTrial, runTrial, url } from "./helpers";
+import { collectEvents, currentRound, getTrial, runTrial, url } from "./helpers";
 
 // CLAUDE.md: during a round, nothing the app sends may contain a month after
 // the round's in-sample end (doc/adr/0002). Checked on everything a visitor
@@ -17,13 +17,23 @@ it("sends no hold-out month during an unrevealed round", async () => {
   const end = round.in_sample_end;
   expect(end).toMatch(/^\d{4}-\d{2}$/);
 
-  const { id } = await runTrial("1.5");
-  const trial = await getTrial(id);
+  const { id, cookie } = await runTrial({ type: "trend", leverage: 1.5, months: 10 });
+  const trial = await getTrial(id, cookie);
   expect(trial.curve.at(-1)?.month).toBe(end);
   expect(trial.curve[0]?.month).toBe(round.in_sample_start);
 
   for (const path of ["/", `/?trial=${id}`, "/api/rounds/current", `/api/trials/${id}`, "/api/rounds/current/trials"]) {
-    const body = await (await fetch(url(path))).text();
+    const body = await (await fetch(url(path), { headers: { cookie } })).text();
     expect(laterMonths(body, end), `${path} leaks hold-out months`).toEqual([]);
   }
+
+  const events = await collectEvents(
+    cookie,
+    3000,
+    async () => {
+      await runTrial({ type: "vol", leverage: 3, target: 10, lookback: 6 });
+    },
+    (evs) => evs.some((e) => e.event === "update"),
+  );
+  expect(laterMonths(JSON.stringify(events), end), "/events leaks hold-out months").toEqual([]);
 });

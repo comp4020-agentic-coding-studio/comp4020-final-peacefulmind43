@@ -1,71 +1,80 @@
 import { expect, it } from "vitest";
 import { currentRound, getTrial, months, runTrial } from "./helpers";
+import { type Rule, wealth } from "./model";
 
 // CLAUDE.md: statistics need a check against a known value. These recompute a
-// trial from data/momentum.csv, independently of the app, and compare.
-//
-// The rule being tested: hold `leverage` times your money in the momentum
-// portfolio, rebalanced monthly. Above 1x, the borrowed part costs the T-bill
-// rate plus 1.5% a year (doc/adr/0002).
+// trial from data/momentum.csv with spec/model.ts, which follows ADR 0004
+// independently of the app, and compare.
 
-const SPREAD_PER_MONTH = 1.5 / 12;
+const rules: Rule[] = [
+  { type: "fixed", leverage: 1 },
+  { type: "fixed", leverage: 2 },
+  { type: "vol", leverage: 2, target: 15, lookback: 6 },
+  { type: "vol", leverage: 3, target: 25, lookback: 12 },
+  { type: "trend", leverage: 1.5, months: 10 },
+];
 
-async function inSample() {
-  const round = await currentRound();
-  return months().filter((m) => m.month >= round.in_sample_start && m.month <= round.in_sample_end);
-}
+for (const rule of rules) {
+  it(`matches an independent backtest: ${JSON.stringify(rule)}`, async () => {
+    const round = await currentRound();
+    const expected = wealth(rule, months(), round.in_sample_start, round.in_sample_end);
+    const { id, cookie } = await runTrial(rule);
+    const trial = await getTrial(id, cookie);
 
-function wealth(leverage: number, rows: ReturnType<typeof months>): number[] {
-  let value = 1;
-  return rows.map((m) => {
-    const borrowCost = (leverage - 1) * (m.rf + SPREAD_PER_MONTH);
-    value *= 1 + (leverage * m.momentum - borrowCost) / 100;
-    value = Math.max(value, 0); // wiped out stays wiped out
-    return value;
-  });
-}
+    expect(trial.curve.map((p) => p.month)).toEqual(expected.map((p) => p.month));
+    trial.curve.forEach((p, i) => {
+      expect(p.value / expected[i].value, `value at ${p.month}`).toBeCloseTo(1, 9);
+    });
 
-for (const leverage of [1, 2]) {
-  it(`matches an independent backtest at ${leverage}x`, async () => {
-    const rows = await inSample();
-    const expected = wealth(leverage, rows);
-    const trial = await getTrial((await runTrial(String(leverage))).id);
-
-    expect(trial.curve).toHaveLength(rows.length);
-    expect(trial.curve.at(-1)!.value / expected.at(-1)!).toBeCloseTo(1, 6);
-
-    const years = rows.length / 12;
-    expect(trial.stats.cagr).toBeCloseTo(expected.at(-1)! ** (1 / years) - 1, 6);
+    const years = expected.length / 12;
+    expect(trial.stats.cagr).toBeCloseTo(expected.at(-1)!.value ** (1 / years) - 1, 9);
 
     let peak = 1; // the starting money is the first peak
     let worst = 0;
-    for (const v of expected) {
-      peak = Math.max(peak, v);
-      worst = Math.min(worst, v / peak - 1);
+    for (const { value } of expected) {
+      peak = Math.max(peak, value);
+      worst = Math.min(worst, value / peak - 1);
     }
-    expect(trial.stats.max_drawdown).toBeCloseTo(worst, 6);
+    expect(trial.stats.max_drawdown).toBeCloseTo(worst, 9);
   });
 }
 
 it("computes the Sharpe ratio from monthly excess returns", async () => {
-  const rows = await inSample();
-  const values = wealth(1, rows);
-  const excess = values.map((v, i) => (v / (i === 0 ? 1 : values[i - 1]) - 1) * 100 - rows[i].rf);
+  const round = await currentRound();
+  const rule: Rule = { type: "fixed", leverage: 1 };
+  const all = months();
+  const values = wealth(rule, all, round.in_sample_start, round.in_sample_end);
+  const rf = new Map(all.map((m) => [m.month, m.rf]));
+  const excess = values.map((p, i) => (p.value / (i === 0 ? 1 : values[i - 1].value) - 1) * 100 - rf.get(p.month)!);
   const mean = excess.reduce((a, b) => a + b, 0) / excess.length;
   const sd = Math.sqrt(excess.reduce((a, b) => a + (b - mean) ** 2, 0) / (excess.length - 1));
-  const trial = await getTrial((await runTrial("1")).id);
-  expect(trial.stats.sharpe).toBeCloseTo((mean / sd) * Math.sqrt(12), 6);
+  const { id, cookie } = await runTrial(rule);
+  expect((await getTrial(id, cookie)).stats.sharpe).toBeCloseTo((mean / sd) * Math.sqrt(12), 9);
 });
 
-// A hand-checkable case: two months of +10% then -10% at 1x is 0.99 of the
-// starting money, whatever the data. Guarded by the formula above; kept here
-// so the arithmetic of `wealth` itself is pinned.
-it("compounds the way the formula says", () => {
-  const rows = [
+// Hand-checkable cases for the model itself, so the reference is pinned too.
+it("charges costs the way ADR 0004 says", () => {
+  const flat = [
     { month: "2000-01", momentum: 10, market: 0, rf: 0 },
     { month: "2000-02", momentum: -10, market: 0, rf: 0 },
   ];
-  expect(wealth(1, rows).at(-1)).toBeCloseTo(0.99, 12);
-  // at 2x with free borrowing: 1.2 * 0.8
-  expect(wealth(2, rows.map((r) => ({ ...r, rf: -SPREAD_PER_MONTH }))).at(-1)).toBeCloseTo(0.96, 12);
+  // 1x: +10% less 1%/12 holding less 0.1% first purchase, then -10% less 1%/12
+  const h = 1 / 12;
+  const oneX = (1 + (10 - h - 0.1) / 100) * (1 + (-10 - h) / 100);
+  expect(wealth({ type: "fixed", leverage: 1 }, flat, "2000-01", "2000-02").at(-1)!.value).toBeCloseTo(oneX, 12);
+  // 2x: 2x the move, 1.5%/12 spread on the borrowed half, 2x holding, 0.2% purchase
+  const twoX = (1 + (20 - 1.5 / 12 - 2 * h - 0.2) / 100) * (1 + (-20 - 1.5 / 12 - 2 * h) / 100);
+  expect(wealth({ type: "fixed", leverage: 2 }, flat, "2000-01", "2000-02").at(-1)!.value).toBeCloseTo(twoX, 12);
+});
+
+it("holds cash under the trend filter when the market is below its average", () => {
+  // The market falls every month. With one month of history the level equals
+  // its own average, so the rule stays in for month 2; by the end of month 2
+  // the level is below its 2-month average, so month 3 is in cash.
+  const falling = ["01", "02", "03", "04"].map((mm) => ({ month: `2000-${mm}`, momentum: 5, market: -5, rf: 0.3 }));
+  const out = wealth({ type: "trend", leverage: 1, months: 2 }, falling, "2000-01", "2000-04");
+  expect(out[1].value / out[0].value).toBeCloseTo(1 + (5 - 1 / 12) / 100, 12);
+  // month 3: sell everything (0.1% of the amount moved), earn the T-bill rate
+  expect(out[2].value / out[1].value).toBeCloseTo(1 + (0.3 - 0.1) / 100, 12);
+  expect(out[3].value / out[2].value).toBeCloseTo(1 + 0.3 / 100, 12);
 });
