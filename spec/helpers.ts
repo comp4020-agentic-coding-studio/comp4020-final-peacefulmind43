@@ -81,13 +81,14 @@ export async function collectEvents(
   ms: number,
   onOpen: () => Promise<void>,
   stop: (events: { event: string; data: any }[]) => boolean,
+  path = "/events",
 ): Promise<{ event: string; data: any; at: number }[]> {
   const controller = new AbortController();
-  const res = await fetch(url("/events"), {
+  const res = await fetch(url(path), {
     headers: { accept: "text/event-stream", ...(cookie ? { cookie } : {}) },
     signal: controller.signal,
   });
-  if (!res.ok || !res.body) throw new Error(`/events answered ${res.status}`);
+  if (!res.ok || !res.body) throw new Error(`${path} answered ${res.status}`);
   const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
   const events: { event: string; data: any; at: number }[] = [];
   let buffer = "";
@@ -136,4 +137,19 @@ export function months(): Month[] {
     const [month, momentum, market, rf] = row.split(",");
     return { month, momentum: Number(momentum), market: Number(market), rf: Number(rf) };
   });
+}
+
+export interface LogEvent {
+  id: number;
+  at: number;
+  visitor: string;
+  event: string;
+  text: string;
+  detail?: Record<string, any>;
+}
+
+export async function readLog(cookie?: string): Promise<{ watching: number; events: LogEvent[] }> {
+  const res = await fetch(url("/api/log"), { headers: cookie ? { cookie } : {} });
+  if (!res.ok) throw new Error(`/api/log answered ${res.status}`);
+  return (await res.json()) as { watching: number; events: LogEvent[] };
 }

@@ -22,7 +22,7 @@ it("sends no hold-out month during an unrevealed round", async () => {
   expect(trial.curve.at(-1)?.month).toBe(end);
   expect(trial.curve[0]?.month).toBe(round.in_sample_start);
 
-  for (const path of ["/", `/?trial=${id}`, "/api/rounds/current", `/api/trials/${id}`, "/api/rounds/current/trials"]) {
+  for (const path of ["/", `/?trial=${id}`, "/api/rounds/current", `/api/trials/${id}`, "/api/rounds/current/trials", "/log", "/api/log"]) {
     const body = await (await fetch(url(path), { headers: { cookie } })).text();
     expect(laterMonths(body, end), `${path} leaks hold-out months`).toEqual([]);
   }
