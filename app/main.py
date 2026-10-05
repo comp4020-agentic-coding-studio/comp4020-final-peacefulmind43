@@ -2,7 +2,6 @@
 everyone's tests once you've run your own."""
 
 import asyncio
-import hashlib
 import html
 import json
 import math
@@ -18,7 +17,8 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Stre
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from . import db
+from . import activity, db
+from .activity import visitor_label
 from .backtest import (
     LEVERAGES,
     TREND_MONTHS,
@@ -74,12 +74,6 @@ templates = Jinja2Templates(directory=HERE / "templates")
 
 
 # --- people -----------------------------------------------------------------
-
-
-def visitor_label(visitor_id: str) -> str:
-    """A short public name for an anonymous visitor. The cookie itself is never
-    shown, since anyone holding it could act as that visitor."""
-    return "Visitor " + hashlib.sha256(visitor_id.encode()).hexdigest()[:6]
 
 
 def has_tested(conn, round_id: int, visitor_id: str | None) -> bool:
@@ -198,6 +192,11 @@ async def events(request: Request):
         snapshot = public_round(current_round(conn))
     entry = (queue, visitor_id)
     subscribers.add(entry)
+    token = id(entry)
+    activity.watch(token, visitor_id)
+    with db.connect() as conn:
+        activity.record(conn, "watch_start", visitor_id, snapshot["id"])
+    opened = time.monotonic()
 
     async def stream():
         try:
@@ -210,6 +209,11 @@ async def events(request: Request):
                     yield ": keep-alive\n\n"  # stops proxies closing a quiet stream
         finally:
             subscribers.discard(entry)
+            activity.unwatch(token)
+            with db.connect() as conn:
+                activity.record(
+                    conn, "watch_end", visitor_id, snapshot["id"], {"seconds": round(time.monotonic() - opened)}
+                )
 
     return StreamingResponse(
         stream(),
@@ -243,7 +247,7 @@ def sparkline(curve: list[list], width: int = 640, height: int = 160) -> dict:
 
 
 @app.get("/", response_class=HTMLResponse)
-def home(request: Request, trial: int | None = None):
+async def home(request: Request, trial: int | None = None):
     me = request.cookies.get(COOKIE)
     with db.connect() as conn:
         rnd = current_round(conn)
@@ -257,6 +261,7 @@ def home(request: Request, trial: int | None = None):
             if row is not None:
                 curve = json.loads(row["curve"])
                 mine = {**trial_summary(row, rnd), "final": curve[-1][1], "chart": sparkline(curve)}
+        activity.record(conn, "visit", me, rnd["id"], {"locked": not unlocked, "hidden": hidden})
     trials = [
         {**trial_summary(r, rnd), "ago": ago(r["created_at"]), "is_me": me is not None and r["visitor_id"] == me}
         for r in rows
@@ -285,14 +290,27 @@ def home(request: Request, trial: int | None = None):
 @app.post("/trials")
 async def run_trial(request: Request):
     form = await request.form()
+    me = request.cookies.get(COOKIE)
     try:
         rule = parse_rule({k: str(v) for k, v in form.items()})
     except ValueError as err:
+        with db.connect() as conn:
+            activity.record(conn, "refused", me, None, {"reason": str(err)})
         raise HTTPException(400, f"Pick a rule from the menu ({err}).")
 
-    me = request.cookies.get(COOKIE) or secrets.token_urlsafe(18)
+    me = me or secrets.token_urlsafe(18)
     with db.connect() as conn:
         rnd = current_round(conn)
+        first_test = not has_tested(conn, rnd["id"], me)
+        others = conn.execute(
+            "SELECT count(*) FROM trials WHERE round_id = ? AND visitor_id != ?", (rnd["id"], me)
+        ).fetchone()[0]
+        repeat = (
+            conn.execute(
+                "SELECT 1 FROM trials WHERE round_id = ? AND rule_key = ? LIMIT 1", (rnd["id"], rule.key)
+            ).fetchone()
+            is not None
+        )
         result = backtest(rule, MONTHS, rnd["in_sample_start"], rnd["in_sample_end"])
         t = (
             timing(result.excess, list(baseline_excess(rnd["in_sample_start"], rnd["in_sample_end"])))
@@ -328,6 +346,26 @@ async def run_trial(request: Request):
             ),
         )
         trial_id = cur.lastrowid
+        row = conn.execute("SELECT * FROM trials WHERE id = ?", (trial_id,)).fetchone()
+        summary = trial_summary(row, current_round(conn))
+        activity.record(
+            conn,
+            "test",
+            me,
+            rnd["id"],
+            {
+                "trial_id": trial_id,
+                "rule": summary["rule"],
+                "cagr": summary["stats"]["cagr"],
+                "sharpe": summary["stats"]["sharpe"],
+                "confidence": summary["confidence"],
+                "first_test": first_test,
+                # ADR 0003: could they see anyone else's results when they chose?
+                "had_seen_others": not first_test and others > 0,
+                "others_visible": 0 if first_test else others,
+                "repeat": repeat,
+            },
+        )
     broadcast(trial_id)
 
     resp = RedirectResponse(f"/?trial={trial_id}#result", status_code=303)
@@ -336,9 +374,60 @@ async def run_trial(request: Request):
 
 
 @app.get("/readme/", response_class=HTMLResponse)
-def readme(request: Request):
+async def readme(request: Request):
     body = markdown.markdown((ROOT / "README.md").read_text(), extensions=["fenced_code", "tables"])
+    with db.connect() as conn:
+        activity.record(conn, "readme", request.cookies.get(COOKIE), None)
     return templates.TemplateResponse(request, "readme.html", {"body": body})
+
+
+# --- the log (ADR 0006) ------------------------------------------------------
+
+
+def log_snapshot(conn, viewer: str | None, limit: int = 100) -> dict:
+    viewer_round = activity.unlocked(conn, viewer)
+    rows = conn.execute("SELECT * FROM events ORDER BY id DESC LIMIT ?", (limit,)).fetchall()
+    return {**activity.counts(conn), "events": [activity.view(r, viewer, viewer_round) for r in rows]}
+
+
+@app.get("/log", response_class=HTMLResponse)
+async def log_page(request: Request):
+    with db.connect() as conn:
+        snap = log_snapshot(conn, request.cookies.get(COOKIE))
+    for e in snap["events"]:
+        e["ago"] = ago(e["at"])
+    return templates.TemplateResponse(request, "log.html", {"log": snap})
+
+
+@app.get("/api/log")
+async def api_log(request: Request):
+    with db.connect() as conn:
+        return log_snapshot(conn, request.cookies.get(COOKIE))
+
+
+@app.get("/log/events")
+async def log_events(request: Request):
+    viewer = request.cookies.get(COOKIE)
+    queue: asyncio.Queue = asyncio.Queue()
+    with db.connect() as conn:
+        counts = activity.counts(conn)
+    entry = (queue, viewer)
+    activity.subscribers.add(entry)
+
+    async def stream():
+        try:
+            yield sse("snapshot", counts)
+            while True:
+                try:
+                    yield sse("log", await asyncio.wait_for(queue.get(), timeout=15))
+                except asyncio.TimeoutError:
+                    yield ": keep-alive\n\n"
+        finally:
+            activity.subscribers.discard(entry)
+
+    return StreamingResponse(
+        stream(), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
+    )
 
 
 # --- API --------------------------------------------------------------------

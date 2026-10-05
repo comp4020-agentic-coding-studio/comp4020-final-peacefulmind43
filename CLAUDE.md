@@ -18,6 +18,11 @@ supersedes it. Never edit an accepted record.
 - **Never hide, edit, or delete a trial.** Every trial counts against the whole
   room. A trial that disappears makes everyone's results look more trustworthy
   than they are. The database enforces this; don't work around it.
+- **Never show other people's results to someone who hasn't tested this
+  round** (ADR 0003). This applies to every surface, including ones added later:
+  pages, the API, both event streams and the activity log. A new surface starts
+  redacted and the spec checks it as a newcomer.
+- **Never log or show a visitor's cookie.** Use the public label.
 - **Never present a result as advice.** Results describe a historical momentum
   portfolio, not SPMO and not a recommendation. Say what was tested, not what
   to do.

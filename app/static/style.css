@@ -106,3 +106,12 @@ fieldset > small { color: var(--muted); }
 
 .locked { background: #fff; border: 1px dashed var(--line); padding: 0.6rem 1rem; }
 .note { color: var(--muted); font-size: 0.9rem; }
+
+.log { list-style: none; padding: 0; margin-top: 1rem; background: #fff; border: 1px solid var(--line); }
+.log li { display: flex; flex-wrap: wrap; gap: 0.25rem 1rem; padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--line); }
+.log li:last-child { border-bottom: 0; }
+.log .who { font-weight: 600; min-width: 9rem; }
+.log .what { flex: 1 1 16rem; }
+.log .when { color: var(--muted); font-size: 0.85rem; }
+.log li.me { background: var(--me); }
+.log li.log-test .what { color: var(--accent); }

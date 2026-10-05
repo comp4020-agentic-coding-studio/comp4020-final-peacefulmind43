@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Activity · Overlay Room{% endblock %}
+{% block main %}
+<h1>What people are doing</h1>
+<p class="lead">Every visit and every test is logged. Until you have run a test of your own this round,
+  you see that tests happened, but not what they were.</p>
+
+<ul class="room-stats" aria-label="Right now">
+  <li><strong data-count="watching">{{ log.watching }}</strong> in the room now</li>
+  <li><strong data-count="tests_last_hour">{{ log.tests_last_hour }}</strong> tests in the last hour</li>
+  <li><strong data-count="visitors_last_hour">{{ log.visitors_last_hour }}</strong> visitors in the last hour</li>
+</ul>
+<p class="live-status" data-field="status" aria-live="polite"></p>
+
+<ol class="log" data-field="log" reversed>
+  {% for e in log.events %}
+  <li data-event-id="{{ e.id }}" data-at="{{ e.at }}" class="log-{{ e.event }}{% if e.detail and e.detail.mine %} me{% endif %}">
+    <span class="who">{{ e.visitor }}{% if e.detail and e.detail.mine %} (you){% endif %}</span>
+    <span class="what">{{ e.text }}</span>
+    <span class="when">{{ e.ago }}</span>
+  </li>
+  {% else %}
+  <li class="empty">Nothing yet.</li>
+  {% endfor %}
+</ol>
+<script src="/static/log.js" defer></script>
+{% endblock %}
