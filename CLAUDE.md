@@ -1,10 +1,47 @@
-# Your harness
+# Harness
 
-This file is yours, and it arrives empty on purpose. The rules you hold the
-agent to are part of what gets marked, so they should be rules you decided on.
+The app is a shared research room for overlay rules on a momentum portfolio.
+`README.md` says what good means here. These rules come from it. When a rule and
+a request conflict, stop and ask.
 
-Nothing about the template is recorded here. What the repo ships is explained
-where it lives --- `fly.toml`, the `Dockerfile`, the CI workflow and
-`spec/README.md` each say what they fix --- and the course website publishes the
-[final project brief](https://comp.anu.edu.au/courses/comp4020-agentic-coding-studio/assessments/final-project/).
-What the agent needs to carry from any of it is your call.
+## Decisions
+
+Decisions live in `doc/adr/`, one numbered file each. Read them before changing
+the stack, storage, data, or data model. To change one, write a new record that
+supersedes it. Never edit an accepted record.
+
+## What the app must never do
+
+- **Never send hold-out data before the reveal.** During a round, no page, API
+  response, or SSE event may contain a month after the round's in-sample end.
+  This includes charts, tables, error messages, and debug output.
+- **Never hide, edit, or delete a trial.** Every trial counts against the whole
+  room. A trial that disappears makes everyone's results look more trustworthy
+  than they are. The database enforces this; don't work around it.
+- **Never present a result as advice.** Results describe a historical momentum
+  portfolio, not SPMO and not a recommendation. Say what was tested, not what
+  to do.
+- **Never let a failed backtest crash the page.** If a computation fails, show
+  what failed and keep the room working.
+
+## How the work must be done
+
+- **Statistics need a check against a known value.** Any new metric (Sharpe,
+  drawdown, deflated Sharpe, financing cost) gets a test with a hand-checkable
+  case before it is shown to anyone.
+- **Schema changes are new migration files** in `app/migrations/`, numbered in
+  order. Never edit a migration that has been committed.
+- **One process.** Real-time is broadcast inside one uvicorn process. Don't add
+  workers or a second process; it would split the live updates.
+- **Fit the machine.** 256 MB of memory. No pandas, no large in-memory caches.
+- **Plain language on the page.** A first-time visitor with no finance
+  background should understand what to do. Technical detail goes behind a
+  "details" section, not in the main view.
+- **English** for everything in the repo and on the site.
+
+## Checks
+
+`pnpm check` runs `spec/` against the running app (`APP_URL`, default
+`http://localhost:8080`). Run it before every commit that changes behaviour.
+When the agent gets something wrong twice, add a check or a rule here instead of
+re-prompting.
