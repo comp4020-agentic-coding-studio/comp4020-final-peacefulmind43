@@ -35,11 +35,16 @@ jobs:
         # volume; the spec runs against it
         run: |
           docker build -t app .
-          docker run -d --init --name app -p 8080:8080 -e PORT=8080 --tmpfs /data app
+          docker run -d --init --name app -p 8080:8080 -e PORT=8080 -e REVEAL_KEY="$REVEAL_KEY" --tmpfs /data app
+        env:
+          # a throwaway operator key so the spec can test a reveal without
+          # waiting a week (doc/adr/0007); production sets its own as a secret
+          REVEAL_KEY: ci-only-not-a-secret
       - name: Run the spec
         run: pnpm check
         env:
           APP_URL: http://localhost:8080
+          REVEAL_KEY: ci-only-not-a-secret
       - name: Show the app's output
         # what the container printed, so a crash or slow boot is visible
         if: ${{ failure() }}
