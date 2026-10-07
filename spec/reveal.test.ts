@@ -73,8 +73,10 @@ it.runIf(key)("reveals a round: live to open pages, in public, and against an in
     const locked = wealth(rule, all, "2016-01", end);
     const years = locked.length / 12;
     expect(found.hold_out.cagr).toBeCloseTo(locked.at(-1)!.value ** (1 / years) - 1, 9);
-    if (rule.type === "fixed") expect(found.hold_out.timing_added).toBeNull();
-    else expect(typeof found.hold_out.timing_added).toBe("number");
+    // ADR 0008: every rule shows what it added beyond holding; always-1x is
+    // the baseline itself, so it added exactly nothing
+    expect(typeof found.hold_out.timing_added).toBe("number");
+    if (rule.type === "fixed" && rule.leverage === 1) expect(found.hold_out.timing_added).toBeCloseTo(0, 9);
   }
 
   // someone coming back the next day finds the way to the results
