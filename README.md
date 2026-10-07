@@ -24,8 +24,10 @@ sites let you try forever and never count. So here, good means:
 3. **Some years stay locked.** Tests use 1927–2015. The years from 2016, roughly
    the years SPMO has existed, unlock at a time published when the round opens.
    The reveal shows which rules still helped when a holder could have used them.
-4. **The numbers can be checked** from the data.
-5. **A friend with no finance background can use it** in a minute.
+4. **You back what you would hold.** Testing is cheap. Before the reveal, each
+   person backs one rule the room tried, and the reveal scores every pick.
+5. **The numbers can be checked**, and **a friend with no finance background
+   can use it** in a minute.
 6. **It never gives advice.** It shows what a rule did, not what to do.
 
 ## Checked and judged
@@ -36,23 +38,22 @@ locked month is sent early; live updates arrive within a second; and every
 number matches a separate calculation, including the deflated Sharpe paper's
 worked example.
 
-People judge the rest. My crit group tests whether a first-time visitor
-understands the page and whether anything sounds like advice. The activity
-log (`/log`) records whether first tests really come before seeing others, and
-whether people keep tuning after the luck bar rises.
+People judge the rest: my crit group, on whether a first-time visitor
+understands the page and whether anything sounds like advice; the activity log
+(`/log`), on whether first tests come before seeing others and whether picks
+follow the crowd.
 
 ## What I read
 
-- Robin Sloan, "An app can be a home-cooked meal" (2020): an app for a few
-  friends is enough.
+- Robin Sloan, "An app can be a home-cooked meal" (2020).
 - David Bailey and Marcos López de Prado, "The Deflated Sharpe Ratio" (2014):
   judge a result against how many tries it took. My first version tested each
   rule against zero, and every rule scored 100%. The useful question is what a
   rule adds over holding.
 - Campbell Harvey, Yan Liu and Heqing Zhu, "...and the Cross-Section of
   Expected Returns" (2016): many findings fail once tries are counted.
-- Kent Daniel and Tobias Moskowitz, "Momentum Crashes" (2016): momentum can
-  lose a lot fast, so leverage needs care.
+- Kent Daniel and Tobias Moskowitz, "Momentum Crashes" (2016): leverage on
+  momentum needs care.
 - Pedro Barroso and Pedro Santa-Clara, "Momentum Has Its Moments" (2015): the
   idea behind the volatility rule.
 - Data: the Kenneth R. French data library.
@@ -60,8 +61,7 @@ whether people keep tuning after the luck bar rises.
 ## What I chose not to build
 
 - **No accounts.** The room only needs to tell people apart.
-- **No "best rule" ranking.** It would reward the luckiest test, which is the
-  problem this room is about.
+- **No "best rule" ranking.** It would reward the luckiest test.
 
 ## Limits
 

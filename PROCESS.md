@@ -84,6 +84,22 @@ Real-time uses server-sent events from one process
 ([`28a2534`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-peacefulmind43/commit/28a2534)),
 because every update goes from server to browser (ADR 0001).
 
+## What crit 8 changed
+
+At crit 8 the room felt static, and I agreed. Running a backtest is a thing
+one person does alone; the live count and luck bar only changed numbers on
+other people's screens, never what they decided. The obvious fix was a bigger
+change of topic, which would have thrown away the work and the reason the room
+is useful to me. Instead I changed the core action. ADR 0008 asks each person
+to back one rule before the reveal, from any rule the room has tried, with the
+counts live and every pick scored at the reveal by what its rule added beyond
+holding
+([`b17a418`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-peacefulmind43/commit/b17a418),
+[`766358a`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-peacefulmind43/commit/766358a)).
+Now there is a reason to read other people's rules: you might back one. I
+judged picks on what a rule adds, not on growth, because growth would reward
+whoever borrowed most in a rising market.
+
 ## Built ahead, on purpose
 
 Two things are in place before the crits that need them. The activity log
