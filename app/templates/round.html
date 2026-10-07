@@ -14,6 +14,28 @@
   <strong>{{ held | length }}</strong> added something in the locked years.</p>
 {% endif %}
 
+<section class="picks" aria-labelledby="picks-heading">
+  <h2 id="picks-heading">The room's picks</h2>
+  {% if r.most_backed %}
+  <p class="headline">The most-backed rule was <strong>{{ r.most_backed.rule.label }}</strong>
+    ({{ r.most_backed.backers }} {{ "pick" if r.most_backed.backers == 1 else "picks" }}).
+    In the locked years it added <strong>{{ signed(r.most_backed.added) }}</strong> a year beyond simply holding.</p>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th scope="col">Who</th><th scope="col">Backed</th><th scope="col">Added per year beyond holding ({{ hold_start_year }}–{{ hold_end_year }})</th></tr></thead>
+    <tbody>
+      {% for p in r.picks %}
+      <tr><td>{{ p.visitor }}</td><td>{{ p.rule.label }}</td><td>{{ signed(p.added) }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <p>Nobody backed a rule in this round.</p>
+  {% endif %}
+</section>
+
+<h2>Every rule tried</h2>
 <div class="table-wrap">
 <table class="reveal">
   <thead>
@@ -24,7 +46,7 @@
     </tr>
     <tr>
       <th scope="col">Chance the timing helps</th><th scope="col">Growth per year</th>
-      <th scope="col">Growth per year</th><th scope="col">Worst fall</th><th scope="col">Timing added per year</th>
+      <th scope="col">Growth per year</th><th scope="col">Worst fall</th><th scope="col">Added per year beyond holding</th>
     </tr>
   </thead>
   <tbody>
@@ -51,9 +73,10 @@
 
 <details>
   <summary>How to read this</summary>
-  <p>"Timing added per year" is what a rule earned beyond holding more or less of the portfolio, in the locked years:
-    the part of its monthly returns that the baseline can't explain, times twelve. "Always" rules only scale the
-    portfolio, so they have no timing. The chance the timing helps is the figure the room saw when the round closed.</p>
+  <p>"Added per year beyond holding" is what a rule earned in the locked years beyond holding the same amount of the
+    portfolio: the part of its monthly returns that "always 1×" can't explain, times twelve. "Always" rules only scale
+    the portfolio, so all they add is their costs. The chance the timing helps is the figure the room saw when the
+    round closed.</p>
   <p>The locked years are roughly the years SPMO has existed. The portfolio is a momentum portfolio, not SPMO, and the
     costs are rough allowances. This is history, not advice.</p>
 </details>

@@ -12,6 +12,11 @@ import time
 
 subscribers: set[tuple[asyncio.Queue, str | None]] = set()
 
+KINDS = {"visit", "test", "refused", "watch_start", "watch_end", "readme", "reveal", "pick"}
+# What these say about a rule is hidden from visitors who haven't tested this
+# round (ADR 0003); the rest only says that something happened.
+SENSITIVE = {"test", "pick"}
+
 
 def visitor_label(visitor_id: str | None) -> str:
     """A short public name for an anonymous visitor. The cookie itself is never
@@ -23,6 +28,8 @@ def visitor_label(visitor_id: str | None) -> str:
 
 def record(conn, kind: str, visitor_id: str | None, round_id: int | None, detail: dict | None = None) -> int:
     """Log one action: stdout, the events table, and every open log view."""
+    if kind not in KINDS:
+        raise ValueError(f"unknown kind of event: {kind}")
     detail = detail or {}
     at = int(time.time())
     cur = conn.execute(
@@ -52,6 +59,13 @@ def unlocked(conn, viewer: str | None) -> int | None:
 
 
 def describe(kind: str, detail: dict, full: bool) -> str:
+    if kind == "pick":
+        if not full:
+            return "backed a rule"
+        text = f"backed “{detail['rule']['label']}”"
+        if detail.get("changed_from"):
+            text += f" (instead of “{detail['changed_from']['label']}”)"
+        return text
     if kind == "test":
         if not full:
             return "ran a test"
@@ -75,7 +89,7 @@ def view(row, viewer: str | None, viewer_round: int | None) -> dict:
     """One event as `viewer` may see it."""
     detail = json.loads(row["detail"])
     mine = viewer is not None and row["visitor_id"] == viewer
-    full = mine or row["kind"] != "test" or (viewer_round is not None and row["round_id"] == viewer_round)
+    full = mine or row["kind"] not in SENSITIVE or (viewer_round is not None and row["round_id"] == viewer_round)
     out = {
         "id": row["id"],
         "at": row["at"],

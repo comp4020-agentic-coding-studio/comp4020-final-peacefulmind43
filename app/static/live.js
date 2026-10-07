@@ -70,6 +70,55 @@
     }
   }
 
+  function drawPicks(p) {
+    const total = $("picks_total");
+    if (total) total.textContent = p.total;
+    const box = $("picks");
+    if (!box || !p.unlocked) return; // a newcomer's view is the server's sentence
+    const children = [];
+    const mine = p.rules.find((r) => r.key === p.mine);
+    if (mine) {
+      const line = text("p", "You back: ");
+      line.className = "mine";
+      line.append(text("strong", mine.label));
+      children.push(line);
+    }
+    const list = document.createElement("ul");
+    list.className = "pick-list";
+    for (const r of p.rules) {
+      const li = document.createElement("li");
+      if (r.key === p.mine) li.className = "me";
+      const label = text("span", r.label);
+      label.className = "pick-label";
+      const backers = text("span", `${r.backers} backing${r.visitors.length ? ": " + r.visitors.join(", ") : ""}`);
+      backers.className = "pick-backers";
+      li.append(label, backers);
+      if (r.key !== p.mine) {
+        const form = document.createElement("form");
+        form.method = "post";
+        form.action = "/picks";
+        const input = document.createElement("input");
+        input.type = "hidden";
+        input.name = "rule_key";
+        input.value = r.key;
+        const button = text("button", "Back this");
+        button.type = "submit";
+        button.className = "small";
+        button.setAttribute("aria-label", `Back ${r.label}`);
+        form.append(input, button);
+        li.append(form);
+      }
+      list.append(li);
+    }
+    children.push(list);
+    box.replaceChildren(...children);
+  }
+
+  async function refreshPicks() {
+    const res = await fetch("/api/rounds/current/picks", { credentials: "same-origin" });
+    if (res.ok) drawPicks(await res.json());
+  }
+
   async function refreshTrials() {
     const res = await fetch("/api/rounds/current/trials", { credentials: "same-origin" });
     if (res.ok) drawTrials(await res.json());
@@ -93,11 +142,13 @@
   stream.addEventListener("snapshot", (e) => {
     drawRound(JSON.parse(e.data));
     refreshTrials(); // after a reconnect, catch up on anything missed
+    refreshPicks();
     if (status) status.textContent = "Live: new tests appear here as people run them.";
   });
   stream.addEventListener("update", (e) => {
     drawRound(JSON.parse(e.data));
     refreshTrials();
+    refreshPicks();
   });
   stream.addEventListener("reveal", (e) => {
     const { revealed_round_id: id, round } = JSON.parse(e.data);
@@ -115,6 +166,7 @@
       banner.hidden = false;
     }
     refreshTrials();
+    refreshPicks();
   });
   stream.onerror = () => {
     if (status) status.textContent = "Reconnecting…";

@@ -106,6 +106,35 @@
 </section>
 {% endif %}
 
+<section id="picks" class="picks" aria-labelledby="picks-heading">
+  <h2 id="picks-heading">Back one rule</h2>
+  <p>Testing is easy. Holding a rule is a commitment. Before the reveal, back the one rule from this round
+    you would actually hold: yours or anyone's. You can change your mind until
+    {{ round.reveal_text }}; only the pick standing then counts. At the reveal, every pick is judged by what
+    its rule added in the locked years beyond simply holding.</p>
+  <p class="picks-total"><strong data-field="picks_total">{{ picks.total }}</strong>
+    {{ "person has" if picks.total == 1 else "people have" }} backed a rule so far.</p>
+  <div data-field="picks">
+  {% if picks.unlocked %}
+    {% if picks.mine %}<p class="mine">You back: <strong>{{ (picks.rules | selectattr("key", "eq", picks.mine) | first).label }}</strong></p>{% endif %}
+    <ul class="pick-list">
+      {% for r in picks.rules %}
+      <li{% if r.key == picks.mine %} class="me"{% endif %}>
+        <span class="pick-label">{{ r.label }}</span>
+        <span class="pick-backers">{{ r.backers }} backing{% if r.visitors %}: {{ r.visitors | join(", ") }}{% endif %}</span>
+        {% if r.key != picks.mine %}
+        <form method="post" action="/picks"><input type="hidden" name="rule_key" value="{{ r.key }}">
+          <button type="submit" class="small" aria-label="Back {{ r.label }}">Back this</button></form>
+        {% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p class="locked">Run a test of your own to see which rules people are backing, and to back one yourself.</p>
+  {% endif %}
+  </div>
+</section>
+
 <section aria-labelledby="all-heading">
   <h2 id="all-heading">{% if unlocked %}Every test in this round{% else %}Tests in this round{% endif %}</h2>
   <p class="locked" data-field="locked" {% if unlocked or hidden == 0 %}hidden{% endif %}>

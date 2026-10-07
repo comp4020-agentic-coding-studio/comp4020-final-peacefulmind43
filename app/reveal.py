@@ -5,6 +5,7 @@ import json
 import math
 from zoneinfo import ZoneInfo
 
+from .activity import visitor_label
 from .backtest import Month, Rule, backtest, timing
 
 CANBERRA = ZoneInfo("Australia/Sydney")  # Canberra keeps Sydney time
@@ -46,7 +47,9 @@ def _period(rule: Rule, months: list[Month], start: str, end: str, baseline: lis
         "timing_added": None,
         "timing_sharpe": None,
     }
-    if rule.type != "fixed" and baseline is not None:
+    # every rule, fixed leverage included, is judged on what it added beyond
+    # holding the same amount of the portfolio (ADR 0008)
+    if baseline is not None:
         t = timing(result.excess, baseline)
         # the mean of x - beta*b is the regression's intercept: what the timing
         # added per month, beyond holding beta times the portfolio
@@ -56,7 +59,7 @@ def _period(rule: Rule, months: list[Month], start: str, end: str, baseline: lis
     return out
 
 
-def results(trials: list, confidence_of, months: list[Month], round_row) -> dict:
+def results(trials: list, confidence_of, months: list[Month], round_row, picks: list = ()) -> dict:
     """Every distinct rule tried in a revealed round, on the in-sample years
     and on the locked years, plus always-1x as the baseline."""
     start, end = round_row["in_sample_start"], round_row["in_sample_end"]
@@ -89,7 +92,25 @@ def results(trials: list, confidence_of, months: list[Month], round_row) -> dict
     # the room's favourites first: highest chance the timing helps, then growth
     rules.sort(key=lambda r: (-(r["confidence"] if r["confidence"] is not None else -1), -r["in_sample"]["cagr"]))
 
+    scored = []
+    backers: dict[str, int] = {}
+    for p in picks:
+        entry = by_key.get(p["rule_key"])
+        if entry is None:
+            continue
+        backers[p["rule_key"]] = backers.get(p["rule_key"], 0) + 1
+        scored.append({"visitor": visitor_label(p["visitor_id"]), "rule": entry["rule"],
+                       "added": entry["hold_out"]["timing_added"]})
+    scored.sort(key=lambda s: -s["added"])
+    most_backed = None
+    if backers:
+        top = max(backers, key=lambda k: (backers[k], -list(by_key).index(k)))
+        most_backed = {"rule": by_key[top]["rule"], "backers": backers[top],
+                       "added": by_key[top]["hold_out"]["timing_added"]}
+
     return {
+        "picks": scored,
+        "most_backed": most_backed,
         "hold_out_start": hold_start,
         "hold_out_end": hold_end,
         "rules": rules,

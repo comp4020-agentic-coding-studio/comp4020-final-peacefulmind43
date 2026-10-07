@@ -163,6 +163,7 @@ def round_info(conn, row) -> dict:
         "timing_rules": len(srs),
         "luck_bar": bar * math.sqrt(12) if bar is not None else None,
         "revealed": row["revealed_at"] is not None,
+        "picks_total": conn.execute("SELECT count(*) FROM picks WHERE round_id = ?", (row["id"],)).fetchone()[0],
         "reveal_at": row["reveal_at"],
         "reveal_text": reveal.reveal_text(row["reveal_at"]) if row["reveal_at"] else None,
         "_luck_bar_monthly": bar,
@@ -214,16 +215,17 @@ def visible_trials(conn, rnd: dict, visitor_id: str | None) -> tuple[list, int]:
 subscribers: set[tuple[asyncio.Queue, str | None]] = set()
 
 
-def broadcast(trial_id: int) -> None:
-    """Tell every open page that a test ran. Everyone hears the count and the
-    luck bar; only visitors who have tested this round hear what it was."""
+def broadcast(trial_id: int | None = None) -> None:
+    """Tell every open page that the room changed (a test, a pick). Everyone
+    hears the counts and the luck bar; only visitors who have tested this round
+    hear what a test was."""
     with db.connect() as conn:
         rnd = current_round(conn)
-        row = conn.execute("SELECT * FROM trials WHERE id = ?", (trial_id,)).fetchone()
-        summary = trial_summary(row, rnd)
+        row = conn.execute("SELECT * FROM trials WHERE id = ?", (trial_id,)).fetchone() if trial_id else None
+        summary = trial_summary(row, rnd) if row else None
         for queue, visitor_id in list(subscribers):
             data = public_round(rnd)
-            if visitor_id == row["visitor_id"] or has_tested(conn, rnd["id"], visitor_id):
+            if summary and (visitor_id == row["visitor_id"] or has_tested(conn, rnd["id"], visitor_id)):
                 data = {**data, "trial": summary}
             queue.put_nowait(data)
 
@@ -311,6 +313,7 @@ async def home(request: Request, trial: int | None = None):
                 curve = json.loads(row["curve"])
                 mine = {**trial_summary(row, rnd), "final": curve[-1][1], "chart": sparkline(curve)}
         last = conn.execute("SELECT id, name FROM rounds WHERE revealed_at IS NOT NULL ORDER BY id DESC LIMIT 1").fetchone()
+        picks = picks_view(conn, rnd, me)
         activity.record(conn, "visit", me, rnd["id"], {"locked": not unlocked, "hidden": hidden})
     trials = [
         {**trial_summary(r, rnd), "ago": ago(r["created_at"]), "is_me": me is not None and r["visitor_id"] == me}
@@ -328,6 +331,7 @@ async def home(request: Request, trial: int | None = None):
             "unlocked": unlocked,
             "mine": mine,
             "last_revealed": dict(last) if last else None,
+            "picks": picks,
             "menu": {
                 "leverages": LEVERAGES,
                 "vol_targets": VOL_TARGETS,
@@ -432,6 +436,72 @@ async def readme(request: Request):
     return templates.TemplateResponse(request, "readme.html", {"body": body})
 
 
+# --- picks (ADR 0008) -------------------------------------------------------
+
+
+def picks_view(conn, rnd: dict, viewer: str | None) -> dict:
+    """The round's picks as `viewer` may see them: the total for everyone,
+    which rules and who for visitors who have tested (ADR 0003)."""
+    unlocked = has_tested(conn, rnd["id"], viewer)
+    mine = conn.execute(
+        "SELECT rule_key FROM picks WHERE round_id = ? AND visitor_id = ?", (rnd["id"], viewer or "")
+    ).fetchone()
+    rules = []
+    if unlocked:
+        tested = conn.execute(
+            "SELECT rule_key, min(rule_params) AS params FROM trials WHERE round_id = ? GROUP BY rule_key",
+            (rnd["id"],),
+        ).fetchall()
+        backers: dict[str, list[str]] = {}
+        for p in conn.execute("SELECT rule_key, visitor_id FROM picks WHERE round_id = ? ORDER BY picked_at", (rnd["id"],)):
+            backers.setdefault(p["rule_key"], []).append(visitor_label(p["visitor_id"]))
+        for t in tested:
+            rule = Rule(**json.loads(t["params"]))
+            names = backers.get(rule.key, [])
+            rules.append({"key": rule.key, "label": rule.label, "backers": len(names), "visitors": names})
+        rules.sort(key=lambda r: (-r["backers"], r["label"]))
+    return {"total": rnd["picks_total"], "unlocked": unlocked, "mine": mine["rule_key"] if mine else None, "rules": rules}
+
+
+@app.post("/picks")
+async def back_a_rule(request: Request):
+    me = request.cookies.get(COOKIE)
+    form = await request.form()
+    rule_key = str(form.get("rule_key", ""))
+    with db.connect() as conn:
+        rnd = current_round(conn)
+        if not has_tested(conn, rnd["id"], me):
+            raise HTTPException(403, "Run a test of your own in this round before backing a rule.")
+        tested = conn.execute(
+            "SELECT rule_params FROM trials WHERE round_id = ? AND rule_key = ? LIMIT 1", (rnd["id"], rule_key)
+        ).fetchone()
+        if tested is None:
+            raise HTTPException(400, "You can only back a rule someone has tested in this round.")
+        rule = Rule(**json.loads(tested["rule_params"]))
+        old = conn.execute(
+            "SELECT rule_params FROM picks WHERE round_id = ? AND visitor_id = ?", (rnd["id"], me)
+        ).fetchone()
+        conn.execute(
+            """INSERT INTO picks (round_id, visitor_id, rule_key, rule_params, picked_at) VALUES (?, ?, ?, ?, ?)
+               ON CONFLICT (round_id, visitor_id)
+               DO UPDATE SET rule_key = excluded.rule_key, rule_params = excluded.rule_params, picked_at = excluded.picked_at""",
+            (rnd["id"], me, rule.key, json.dumps(rule.params()), int(time.time())),
+        )
+        detail = {"rule": {"key": rule.key, "label": rule.label}}
+        if old is not None:
+            before = Rule(**json.loads(old["rule_params"]))
+            detail["changed_from"] = {"key": before.key, "label": before.label}
+        activity.record(conn, "pick", me, rnd["id"], detail)
+    broadcast()
+    return RedirectResponse("/#picks", status_code=303)
+
+
+@app.get("/api/rounds/current/picks")
+def api_picks(request: Request):
+    with db.connect() as conn:
+        return picks_view(conn, current_round(conn), request.cookies.get(COOKIE))
+
+
 # --- the log (ADR 0006) ------------------------------------------------------
 
 
@@ -511,7 +581,8 @@ def revealed_round(conn, round_id: int) -> dict:
     trials = conn.execute(
         "SELECT * FROM trials WHERE round_id = ? AND rule_params IS NOT NULL ORDER BY id", (round_id,)
     ).fetchall()
-    out = reveal.results(trials, lambda r: trial_summary(r, info)["confidence"], MONTHS, row)
+    picks = conn.execute("SELECT * FROM picks WHERE round_id = ? ORDER BY picked_at", (round_id,)).fetchall()
+    out = reveal.results(trials, lambda r: trial_summary(r, info)["confidence"], MONTHS, row, picks)
     return {**public_round(info), **out, "revealed_at": row["revealed_at"]}
 
 

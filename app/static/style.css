@@ -121,3 +121,13 @@ fieldset > small { color: var(--muted); }
 table.reveal th[scope="colgroup"] { text-align: center; border-bottom: 1px solid var(--line); }
 table.reveal tr.baseline { background: var(--paper); }
 .round-list li { margin: 0.4rem 0; }
+
+.picks { background: #fff; border: 1px solid var(--line); padding: 0.25rem 1rem 1rem; margin-top: 2rem; }
+.pick-list { list-style: none; padding: 0; margin: 0; }
+.pick-list li { display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem 1rem; padding: 0.5rem 0; border-bottom: 1px solid var(--line); }
+.pick-list li.me { background: var(--me); }
+.pick-label { flex: 1 1 18rem; }
+.pick-backers { color: var(--muted); font-size: 0.9rem; }
+.pick-list form { margin: 0; }
+button.small { margin-top: 0; padding: 0.3rem 0.8rem; font-size: 0.9rem; }
+.picks-total strong { font-size: 1.3rem; }
