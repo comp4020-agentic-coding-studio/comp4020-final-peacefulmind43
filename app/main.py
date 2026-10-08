@@ -652,6 +652,37 @@ def api_trial(request: Request, trial_id: int):
     return {**summary, "curve": curve}
 
 
+@app.post("/api/engine/simulate")
+async def api_simulate(request: Request):
+    """Run the game engine on given inputs and return every tick's fingerprint,
+    so the spec can check it against an independent engine (ADR 0010). Pure
+    computation: nothing is stored."""
+    from .game import engine
+
+    body = await request.json()
+    seed, team_size, actions = body.get("seed"), body.get("team_size"), body.get("actions")
+    if not isinstance(seed, int) or team_size not in engine.SIZES or not isinstance(actions, list):
+        raise HTTPException(400, "Send seed (int), team_size (2 or 3) and actions (a list of ticks).")
+    if len(actions) > engine.MAX_TICKS or any(
+        not isinstance(t, list) or len(t) != 2 * team_size or any(not isinstance(a, int) for a in t) for t in actions
+    ):
+        raise HTTPException(400, f"Each tick needs {2 * team_size} integer actions, at most {engine.MAX_TICKS} ticks.")
+    state = engine.new_game(seed, team_size)
+    fingerprints, events = [], []
+    for tick_actions in actions:
+        for name, seat in engine.step(state, tick_actions):
+            events.append([state.tick, name, seat])
+        fingerprints.append(engine.fingerprint(state))
+    m = state.map
+    return {
+        "rules_version": engine.RULES_VERSION,
+        "map": {"width": m.width, "height": m.height, "walls": sorted([x, y] for x, y in m.walls)},
+        "fingerprints": fingerprints,
+        "events": events,
+        "hash": engine.state_hash(state),
+    }
+
+
 @app.exception_handler(HTTPException)
 async def plain_errors(request: Request, exc: HTTPException):
     if request.url.path.startswith("/api/"):
