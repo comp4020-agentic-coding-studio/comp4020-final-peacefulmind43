@@ -1,10 +1,10 @@
-// Live updates for the activity log (doc/adr/0006). The server has already
-// redacted each entry for this visitor; this only draws it.
+// Live updates for the activity log (doc/adr/0006). The server sends each
+// entry ready to show; this only draws it.
 
 (() => {
   const list = document.querySelector('[data-field="log"]');
   const status = document.querySelector('[data-field="status"]');
-  if (!list || !("EventSource" in window)) return;
+  if (!list) return;
 
   function ago(at) {
     const s = Math.max(Math.floor(Date.now() / 1000) - at, 0);
@@ -20,39 +20,32 @@
     return el;
   }
 
-  function drawCounts(counts) {
-    for (const [key, value] of Object.entries(counts || {})) {
-      const el = document.querySelector(`[data-count="${key}"]`);
-      if (el) el.textContent = value;
+  // keep "x min ago" honest without a reload
+  const refreshTimes = () => {
+    for (const li of list.querySelectorAll("li[data-at]")) {
+      li.querySelector(".when").textContent = ago(Number(li.dataset.at));
     }
-  }
+  };
+  refreshTimes();
+  setInterval(refreshTimes, 30000);
 
+  if (!("EventSource" in window)) return;
   const stream = new EventSource("/log/events");
-  stream.addEventListener("snapshot", (e) => {
-    drawCounts(JSON.parse(e.data));
+  stream.addEventListener("snapshot", () => {
     if (status) status.textContent = "Live: new activity appears at the top.";
   });
   stream.addEventListener("log", (e) => {
     const entry = JSON.parse(e.data);
-    drawCounts(entry.counts);
     list.querySelector(".empty")?.remove();
     const li = document.createElement("li");
     li.dataset.eventId = entry.id;
     li.dataset.at = entry.at;
-    const mine = entry.detail && entry.detail.mine;
-    li.className = `log-${entry.event}${mine ? " me" : ""}`;
-    li.append(span("who", entry.visitor + (mine ? " (you)" : "")), span("what", entry.text), span("when", ago(entry.at)));
+    li.className = `log-${entry.event}`;
+    li.append(span("who", entry.visitor), span("what", entry.text), span("when", ago(entry.at)));
     list.prepend(li);
     while (list.children.length > 100) list.lastElementChild.remove();
   });
   stream.onerror = () => {
     if (status) status.textContent = "Reconnecting…";
   };
-
-  // keep "x min ago" honest without a reload
-  setInterval(() => {
-    for (const li of list.querySelectorAll("[data-at]")) {
-      li.querySelector(".when").textContent = ago(Number(li.dataset.at));
-    }
-  }, 30000);
 })();

@@ -15,7 +15,6 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app/ app/
-COPY data/ data/
 COPY README.md .
 
 # exec, so uvicorn gets signals directly and shuts down cleanly on a redeploy
