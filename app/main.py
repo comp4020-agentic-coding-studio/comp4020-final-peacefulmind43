@@ -1,8 +1,10 @@
 """Capture the flag with bot teammates (ADR 0009)."""
 
 import asyncio
+import hmac
 import html
 import json
+import os
 import secrets
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -15,16 +17,39 @@ from fastapi.templating import Jinja2Templates
 
 from . import activity, db
 from .game import engine
+from .game.arena import Hall
+from .game.store import Store
 
 ROOT = Path(__file__).resolve().parent.parent
 HERE = Path(__file__).resolve().parent
 COOKIE = "visitor"
 
 
+hall = Hall(Store())
+
+
+def log_soon(kind: str, visitor_id: str | None, detail: dict) -> None:
+    """The arena reports things worth logging during a tick; they are written
+    just after it, so the tick itself never touches the database."""
+
+    def write():
+        with db.connect() as conn:
+            activity.record(conn, kind, visitor_id, detail)
+
+    asyncio.get_running_loop().call_soon(write)
+
+
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     db.migrate()
+    interrupted = Store.interrupt_leftovers()
+    if interrupted:
+        print(json.dumps({"event": "matches_interrupted", "count": interrupted}), flush=True)
+    hall.on_log = log_soon
+    hall.shared()
+    ticker = asyncio.create_task(hall.run())
     yield
+    ticker.cancel()
 
 
 app = FastAPI(lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
@@ -65,6 +90,91 @@ async def readme(request: Request):
     with db.connect() as conn:
         activity.record(conn, "readme", request.cookies.get(COOKIE))
     return templates.TemplateResponse(request, "readme.html", {"body": body})
+
+
+# --- the arena (ADR 0011) ---------------------------------------------------
+
+
+@app.get("/arena/events")
+async def arena_events(request: Request, arena: str | None = None):
+    me, new = visitor(request)
+    try:
+        room, page = hall.arrive(me, arena)
+    except KeyError:
+        raise HTTPException(404, "No such arena.")
+
+    async def stream():
+        try:
+            while True:
+                try:
+                    await asyncio.wait_for(page.wake.wait(), timeout=15)
+                except asyncio.TimeoutError:
+                    yield ": keep-alive\n\n"
+                    continue
+                for event, data in page.drain():
+                    yield sse(event, data)
+        finally:
+            hall.depart(room, page)
+
+    response = StreamingResponse(
+        stream(), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
+    )
+    return remember(response, me, new)
+
+
+@app.post("/arena/input", status_code=204)
+async def arena_input(request: Request):
+    me = request.cookies.get(COOKIE)
+    body = await request.json()
+    direction, held, seq = body.get("dir"), body.get("held"), body.get("seq")
+    if direction not in range(5) or not isinstance(held, bool) or not isinstance(seq, int):
+        raise HTTPException(400, "Send dir (0-4), held (true/false) and seq (an increasing number).")
+    if not me or not hall.input(me, direction, held, seq):
+        raise HTTPException(409, "You don't have a seat. Open the game first.")
+
+
+def operator(request: Request) -> None:
+    """Private arenas need the operator key (for the spec and for demos)."""
+    expected = os.environ.get("OPERATOR_KEY")
+    if not expected:
+        raise HTTPException(404, "Not found.")
+    if not hmac.compare_digest(request.headers.get("x-operator-key", "").encode(), expected.encode()):
+        raise HTTPException(403, "That key doesn't open anything.")
+
+
+@app.post("/api/arenas")
+async def create_arena(request: Request):
+    operator(request)
+    body = await request.json()
+    team_size, seed = body.get("team_size"), body.get("seed")
+    max_ticks, break_seconds = body.get("max_ticks", engine.MAX_TICKS), body.get("break_seconds", 10)
+    if team_size not in engine.SIZES or not isinstance(seed, int) or not 0 <= seed < 2**32:
+        raise HTTPException(400, "Send team_size (2 or 3) and seed (0 to 2^32 - 1).")
+    if not isinstance(max_ticks, int) or not 1 <= max_ticks <= engine.MAX_TICKS or not 0 <= break_seconds <= 60:
+        raise HTTPException(400, "max_ticks must be 1-720 and break_seconds 0-60.")
+    try:
+        arena = hall.open_arena(f"p-{secrets.token_urlsafe(6)}", "private", team_size, seed, max_ticks=max_ticks, break_seconds=break_seconds)
+    except RuntimeError:
+        raise HTTPException(503, "Too many arenas are open. Try again in a minute.")
+    return {"id": arena.id}
+
+
+@app.get("/api/matches/{match_id}")
+async def api_match(match_id: int):
+    with db.connect() as conn:
+        row = conn.execute("SELECT * FROM matches WHERE id = ?", (match_id,)).fetchone()
+    if row is None:
+        raise HTTPException(404, "No such match.")
+    return {
+        "id": row["id"],
+        "arena": row["arena"],
+        "status": row["status"],
+        "score": [row["score_blue"], row["score_red"]],
+        "ticks": row["ticks"],
+        "team_size": row["team_size"],
+        "seed": row["seed"],
+        "rules_version": row["rules_version"],
+    }
 
 
 # --- the log (ADR 0006) -----------------------------------------------------

@@ -130,7 +130,7 @@ it.runIf(operatorKey)("hands a closed page's seat to a bot within five seconds, 
   expect(covered.at - closedAt).toBeLessThan(7000);
   expect(covered.data.seats[seat].covering, "the page says whose seat the bot is covering").toMatch(/^Visitor /);
   await nextTick(watcher); // still ticking
-});
+}, 15000);
 
 it.runIf(operatorKey)("puts a fifth person on the bench when every seat is a person", async () => {
   const { id } = await createArena({ team_size: 2, seed: 107 });
@@ -152,7 +152,7 @@ it.runIf(operatorKey)("saves a finished match, then starts the next one", async 
   const saved = await (await fetch(url(`/api/matches/${first}`))).json();
   expect(saved).toMatchObject({ id: first, status: "finished", ticks: 12, team_size: 2, seed: 108 });
   expect(saved.score).toEqual(over.data.score);
-});
+}, 15000);
 
 it("refuses an input from someone without a seat, and private arenas without the operator key", async () => {
   expect((await sendInput(await newVisitor(), EAST, false, 1)).status).toBe(409);
