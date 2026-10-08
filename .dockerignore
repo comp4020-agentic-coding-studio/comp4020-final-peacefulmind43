@@ -14,3 +14,6 @@ mise.local.toml
 .venv
 __pycache__
 .data
+rl
+tests
+.pytest_cache

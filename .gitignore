@@ -25,3 +25,7 @@ mise.local.toml
 .venv/
 __pycache__/
 .data/
+
+# RL training runs and checkpoints stay local
+rl/runs/
+.pytest_cache/
