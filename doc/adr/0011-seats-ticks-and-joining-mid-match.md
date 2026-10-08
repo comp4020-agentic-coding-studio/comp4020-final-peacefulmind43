@@ -1,6 +1,7 @@
 # 0011. Seats, ticks, and joining a match already under way
 
-Status: accepted (2026-10-08). The crit 9 decision. Supersedes ADR 0001's
+Status: accepted (2026-10-08); amended 2026-10-09, before it was merged, in
+the two places marked "Amended". The crit 9 decision. Supersedes ADR 0001's
 "updates only go from server to browser"; the rest of 0001 stands.
 
 ## Context
@@ -53,12 +54,21 @@ How the rest works:
   previous tick, never from the inputs people have just sent.
 - **Seats belong to a visitor** (the cookie). Two tabs with one cookie control
   one seat.
-- **Leaving.** If your page closes or you send nothing for 5 seconds, a bot
-  covers your seat, and everyone sees "bot covering for Visitor ab12". Coming
-  back during the match gives you the seat back.
+- **Leaving.** If your page closes, a bot covers your seat after 5 seconds
+  (long enough to survive a dropped connection), and everyone sees "bot
+  covering for Visitor ab12". If the page stays open but you do nothing for 60
+  seconds, the same happens; your next input takes the seat back. Coming back
+  during the match always gives you your seat back.
+  *Amended:* the first version said 5 seconds without input. Standing still is
+  a real tactic (guarding the flag), and a held key sends one request, so
+  silence doesn't mean someone has gone.
 - **Team size** is set when a match starts: 2v2 for up to four people, 3v3 for
   five or six. A newcomer takes a bot's seat on the team with fewer people.
-  When every seat in the shared arena is a person, a second shared arena opens.
+  If every seat is already a person and there are six people or fewer, the
+  newcomer waits on the bench and plays from the next match, which grows to
+  3v3. Only a seventh person opens a second shared arena.
+  *Amended:* the first version opened a second arena as soon as the seats were
+  full, which meant a group of five or six could never play one match together.
 - **Restarts.** A redeploy or a stopped machine ends live matches; on start-up
   they are marked interrupted, not lost.
 
