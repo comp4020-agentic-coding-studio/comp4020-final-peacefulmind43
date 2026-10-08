@@ -10,11 +10,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-RULES_VERSION = 1
+RULES_VERSION = 2  # 2: a team can't enter its own flag's cell; carriers skip 1 tick in 4, not 3
 
 SIZES = {2: (16, 10), 3: (20, 12)}  # team size -> (width, height)
 WALL_FRACTION = 0.18
 RESPAWN_TICKS = 8
+CARRIER_SKIP = 4  # a carrier doesn't move on every CARRIER_SKIP-th tick (rules v2; was 3)
 MAX_TICKS = 720
 WIN_SCORE = 3
 
@@ -59,6 +60,11 @@ class Map:
 
     def open(self, x: int, y: int) -> bool:
         return 0 <= x < self.width and 0 <= y < self.height and (x, y) not in self.walls
+
+    def open_for(self, team: int, x: int, y: int) -> bool:
+        """Open, and not this team's own flag cell, which is a wall to them
+        (rules version 2: otherwise standing on your flag makes it untakeable)."""
+        return self.open(x, y) and (x, y) != self.flags[team]
 
 
 def make_map(seed: int, team_size: int) -> Map:
@@ -124,10 +130,12 @@ class State:
     score: list[int] = field(default_factory=lambda: [0, 0])
     carrier: list[int | None] = field(default_factory=lambda: [None, None])  # who holds blue's, red's flag
     tick: int = 0
+    max_ticks: int = MAX_TICKS  # shorter only in private test arenas
+    seed: int = 0  # the match seed, so bots' randomness replays too
 
     @property
     def done(self) -> bool:
-        return max(self.score) >= WIN_SCORE or self.tick >= MAX_TICKS
+        return max(self.score) >= WIN_SCORE or self.tick >= self.max_ticks
 
 
 def new_game(seed: int, team_size: int) -> State:
@@ -138,7 +146,7 @@ def new_game(seed: int, team_size: int) -> State:
         team = 0 if seat < team_size else 1
         x, y = m.bases[team][seat % team_size]
         players.append(Player(team, x, y))
-    return State(m, players)
+    return State(m, players, seed=seed)
 
 
 def step(state: State, actions: list[int]) -> list[tuple[str, int]]:
@@ -154,11 +162,11 @@ def step(state: State, actions: list[int]) -> list[tuple[str, int]]:
         if not p.active:
             continue
         action = actions[i] if 0 <= actions[i] <= 4 else STAY
-        if p.carrying and state.tick % 3 == 2:  # carriers are slower
+        if p.carrying and state.tick % CARRIER_SKIP == CARRIER_SKIP - 1:  # carriers are slower
             action = STAY
         dx, dy = MOVES[action]
         nx, ny = p.x + dx, p.y + dy
-        target[i] = (nx, ny) if m.open(nx, ny) else (p.x, p.y)
+        target[i] = (nx, ny) if m.open_for(p.team, nx, ny) else (p.x, p.y)
 
     # 2. contact between enemies: same destination, or swapping cells
     tagged: set[int] = set()
@@ -194,7 +202,7 @@ def step(state: State, actions: list[int]) -> list[tuple[str, int]]:
             p.respawn -= 1
             if p.respawn == 0:
                 taken = {(q.x, q.y) for q in players if q.active and q is not p}
-                free = [c for c in m.bases[p.team] if c not in taken]
+                free = [c for c in m.bases[p.team] if c not in taken and c != m.flags[p.team]]
                 if free:
                     p.x, p.y = free[0]
                     events.append(("respawn", i))

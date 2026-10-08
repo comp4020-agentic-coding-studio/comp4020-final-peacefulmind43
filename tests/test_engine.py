@@ -112,6 +112,35 @@ def test_tagged_players_return_after_the_respawn_time():
 # --- flags ------------------------------------------------------------------
 
 
+def test_a_team_cannot_stand_on_its_own_flag():
+    # rules version 2: guarding the flag cell itself made it untakeable
+    m = empty_map()
+    fx, fy = m.flags[0]
+    s = game(Player(0, fx + 1, fy), Player(1, 15, 9), m=m)
+    step(s, [WEST, STAY])
+    assert (s.players[0].x, s.players[0].y) == (fx + 1, fy)
+
+
+def test_the_enemy_can_still_step_onto_your_flag():
+    m = empty_map()
+    fx, fy = m.flags[0]
+    s = game(Player(1, fx + 1, fy), Player(0, 0, 0), m=m)
+    events = step(s, [WEST, STAY])
+    assert ("pickup", 0) in events
+
+
+def test_respawn_never_lands_on_your_own_flag():
+    m = empty_map()
+    s = game(Player(0, 5, 2), Player(1, 6, 2), m=m)
+    # fill every red base cell but the flag with red players already standing
+    others = [Player(1, x, y) for x, y in m.bases[1][:8]]
+    s.players.extend(others)
+    step(s, [STAY, WEST] + [STAY] * len(others))  # red seat 1 is tagged on blue's half
+    for _ in range(RESPAWN_TICKS + 2):
+        step(s, [STAY] * len(s.players))
+    assert (s.players[1].x, s.players[1].y) != m.flags[1]
+
+
 def test_standing_on_the_enemy_flag_picks_it_up_lowest_seat_first():
     m = empty_map()
     fx, fy = m.flags[1]
@@ -120,14 +149,14 @@ def test_standing_on_the_enemy_flag_picks_it_up_lowest_seat_first():
     assert ("pickup", 0) in events and s.carrier[1] == 0 and not s.players[1].carrying
 
 
-def test_carriers_skip_every_third_tick():
+def test_carriers_skip_one_tick_in_four():
     s = game(Player(0, 3, 0, carrying=True), Player(1, 15, 9))
     s.carrier[1] = 0
     xs = []
     for _ in range(6):
         step(s, [EAST, STAY])
         xs.append(s.players[0].x)
-    assert xs == [4, 5, 5, 6, 7, 7]  # no move on ticks 2 and 5
+    assert xs == [4, 5, 6, 6, 7, 8]  # no move on tick 3
 
 
 def test_tagging_a_carrier_sends_the_flag_home():
@@ -176,3 +205,30 @@ def test_the_rules_are_the_same_for_both_teams():
     t = game(Player(1, 10, 2), Player(0, 9, 2))
     step(t, [STAY, EAST])
     assert s.players[1].respawn == t.players[1].respawn == RESPAWN_TICKS
+
+
+def test_the_engine_is_mirror_symmetric_between_teams():
+    # Mirror a whole game (flip left-right, swap the teams, swap east and west):
+    # every tick must be the mirror image of the original. A balance check
+    # once looked unfair; this showed the engine wasn't the cause.
+    from app.game.engine import Rng
+
+    swap = {0: 0, 1: 1, 2: 2, EAST: WEST, WEST: EAST}
+    for seed in range(20):
+        for k in (2, 3):
+            a, b = new_game(seed, k), new_game(seed, k)
+            width = a.map.width
+            mirror = lambda i: (i + k) % (2 * k)  # noqa: E731  blue seat i <-> red seat k+i
+            rng = Rng(seed + 7)
+            for _ in range(300):
+                acts = [rng.below(5) for _ in range(2 * k)]
+                mirrored = [0] * (2 * k)
+                for i, act in enumerate(acts):
+                    mirrored[mirror(i)] = swap[act]
+                step(a, acts)
+                step(b, mirrored)
+                assert a.score[::-1] == b.score
+                for i, p in enumerate(a.players):
+                    q = b.players[mirror(i)]
+                    x = p.x if p.x < 0 else width - 1 - p.x
+                    assert (x, p.y, p.respawn, p.carrying) == (q.x, q.y, q.respawn, q.carrying)

@@ -5,6 +5,7 @@
 export const SIZES: Record<number, [number, number]> = { 2: [16, 10], 3: [20, 12] };
 export const WALL_FRACTION = 0.18;
 export const RESPAWN_TICKS = 8;
+export const CARRIER_SKIP = 4; // rules v2 (was 3)
 export const MAX_TICKS = 720;
 export const WIN_SCORE = 3;
 
@@ -51,6 +52,9 @@ export interface GameMap {
 const half = (m: GameMap, x: number) => (x < Math.floor(m.width / 2) ? 0 : 1);
 const open = (m: GameMap, x: number, y: number) =>
   x >= 0 && x < m.width && y >= 0 && y < m.height && !m.walls.has(`${x},${y}`);
+// rules version 2: a team's own flag cell is a wall to that team
+const openFor = (m: GameMap, team: number, x: number, y: number) =>
+  open(m, x, y) && !(x === m.flags[team][0] && y === m.flags[team][1]);
 
 export function makeMap(seed: number, teamSize: number): GameMap {
   const [width, height] = SIZES[teamSize];
@@ -145,10 +149,10 @@ export function step(s: State, actions: number[]): [string, number][] {
   P.forEach((p, i) => {
     if (p.respawn !== 0) return;
     let a = actions[i] >= 0 && actions[i] <= 4 ? actions[i] : 0;
-    if (p.carrying && s.tick % 3 === 2) a = 0;
+    if (p.carrying && s.tick % CARRIER_SKIP === CARRIER_SKIP - 1) a = 0;
     const [dx, dy] = MOVES[a];
     const nx = p.x + dx, ny = p.y + dy;
-    target.set(i, open(m, nx, ny) ? [nx, ny] : [p.x, p.y]);
+    target.set(i, openFor(m, p.team, nx, ny) ? [nx, ny] : [p.x, p.y]);
   });
 
   // 2. contact
@@ -194,7 +198,8 @@ export function step(s: State, actions: number[]): [string, number][] {
       p.respawn -= 1;
       if (p.respawn === 0) {
         const taken = new Set(P.filter((q) => q.respawn === 0 && q !== p).map((q) => `${q.x},${q.y}`));
-        const free = m.bases[p.team].filter((c) => !taken.has(key(c)));
+        const flag = key(m.flags[p.team]);
+        const free = m.bases[p.team].filter((c) => !taken.has(key(c)) && key(c) !== flag);
         if (free.length) {
           [p.x, p.y] = free[0];
           events.push(["respawn", i]);

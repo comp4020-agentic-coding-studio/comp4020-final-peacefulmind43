@@ -1,6 +1,6 @@
 # 0010. The rules of the game
 
-Status: accepted (2026-10-08). Rules version 1.
+Status: accepted (2026-10-08). Rules version 2 since 2026-10-09 (see the end).
 
 ## Context
 
@@ -41,9 +41,12 @@ north, south, east, west) and everyone moves **at the same time**:
 6. **Capture**: a carrier standing in their own base scores 1 for their team,
    and the flag goes home.
 
-**Carriers are slower**: a carrier doesn't move on every third tick
-(`tick mod 3 = 2`). Otherwise a carrier could never be caught from behind, and
-defending would be pointless.
+**Carriers are slower**: a carrier doesn't move on every fourth tick
+(`tick mod 4 = 3`; every third in version 1). Otherwise a carrier could never
+be caught from behind, and defending would be pointless.
+
+**A team can't enter its own flag's cell** (version 2). It is a wall to that
+team, and spawning and respawning skip it.
 
 **Scoring doesn't need your own flag at home.** Simpler to learn, and games
 don't stall.
@@ -64,3 +67,36 @@ previous tick, never from the inputs people have just sent (ADR 0011).
   trained on.
 - Any change to these rules gets a new rules version; replays record the
   version they were played under.
+
+## Rules version 2 (2026-10-09)
+
+Before training anything on these rules, I played the scripted bots against
+each other on many random maps. That found two problems with version 1.
+
+1. **Standing on your own flag made it untakeable.** To pick up a flag you
+   have to step onto its cell, which is on the defenders' half, so contact
+   there always tags the attacker. A defender parked on the flag could never be
+   beaten: 80 bot games out of 80 were 0–0 draws. People would find this too,
+   and an RL agent would learn it first and learn nothing else. Version 2 makes
+   a team's own flag cell a wall to that team.
+2. **Carriers were too slow.** With competent defenders, carriers were caught
+   on the way home almost every time: about 26 pickups but 0.6 captures a game,
+   and 72% draws. Comparing skip rates over 120 bot games each:
+
+   | carrier skips | captures a game | matches decided | mean length |
+   |---|---|---|---|
+   | 1 tick in 3 | 0.57 | 28% | 719 ticks |
+   | 1 tick in 4 | 1.98 | 71% | 672 ticks |
+   | 1 tick in 6 | 3.08 | 82% | 589 ticks |
+   | never | 4.43 | 98% | 268 ticks |
+
+   One in four keeps defending worthwhile while most matches get decided, and
+   blue and red won about equally (45–40). For RL it also keeps scoring
+   neither so rare that the reward is almost always zero, nor so easy that one
+   rushing move is all there is to learn.
+
+Along the way, a balance check that looked unfair turned out to be the test's
+fault: the bots' random moves were seeded the same in every game, so 80 games
+were not 80 independent samples. A direct check showed the engine itself is
+exactly mirror-symmetric between the teams (60 games of random moves, every
+tick mirrored).
