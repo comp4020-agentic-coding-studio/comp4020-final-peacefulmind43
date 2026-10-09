@@ -66,11 +66,11 @@ every tick. The real cause was that my bots' random moves were seeded the same
 in every game, so 80 games were not 80 samples. The mirror check is now a
 permanent test.
 
-**Reading my own record again found two holes** before I built on it
+**Rereading my own record found two holes** before I built on it
 ([`39c9047`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-peacefulmind43/commit/39c9047)):
 "no input for 5 seconds means you left" would hand a guarding player's seat to
-a bot, and "open a second arena when seats are full" meant five or six friends
-could never play together.
+a bot, and a full arena opening a second one meant six friends could never play
+together.
 
 **Playing it myself changed the game** (ADR 0012,
 [`feb9602`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-peacefulmind43/commit/feb9602)).
@@ -82,12 +82,33 @@ key press walked two steps, because a solo turn resolves faster than a normal
 key press
 ([`b0baeab`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-peacefulmind43/commit/b0baeab)).
 
-**The spec caught real bugs too.** A check that every saved match had a person
-in it found arenas playing matches for nobody
-([`312363f`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-peacefulmind43/commit/312363f)).
-The turn change brought two more: a person who had closed the page was still
-waited for, and an arena with nobody able to choose treated "everyone has
-chosen" as true and raced through its match in seconds.
+**The spec caught real bugs too**: arenas playing matches for nobody
+([`312363f`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-peacefulmind43/commit/312363f)),
+and, after the turn change, an arena with nobody able to choose treating
+"everyone has chosen" as true and racing through its match in seconds.
+
+## Training the bot
+
+The RL bot (ADR 0013) sees the whole map from its own side, is rewarded as a
+team, and gets potential-based shaping that can't be farmed and fades out. It
+trains with PPO against the scripted bots. Three things taught me the most
+([`ec7237e`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-peacefulmind43/commit/ec7237e),
+[`4f32a7b`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-peacefulmind43/commit/4f32a7b),
+[`034a144`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-peacefulmind43/commit/034a144)):
+
+- **Profile before optimising.** 92% of the environment's time was
+  shortest-path searches with the same targets all match; caching them made it
+  13 times faster with identical bot results.
+- **Watch the bot, not just the score.** An early bot never scored. Playing it
+  showed its players spent 100% of their turns at home: every early crossing
+  met a full defender, so it learned not to cross. An adaptive curriculum now
+  starts opponents wandering and strengthens them as the bot wins.
+- **A flipped view needs a flipped action.** Red sees the map mirrored, but its
+  chosen move was applied unmirrored, so half of every batch taught the
+  opposite of the other half. The mirror test had only checked what each side
+  sees; a new one checks what the same choice means for each. I also designed
+  one diagnostic badly (still opponents turned out to wall in their own flag)
+  and said so in the log rather than trusting it.
 
 ## The stack, and why
 
@@ -100,5 +121,6 @@ by construction. The trade-offs are in ADRs 0001, 0011 and 0012.
 
 ## What comes next
 
-Training an RL bot on the same engine, deploying it beside the scripted bots,
-and measuring whether it is a better teammate for people.
+Finishing training, evaluating on unseen maps over several seeds, deploying the
+bot beside the scripted ones, and measuring whether people find it a better
+teammate.
