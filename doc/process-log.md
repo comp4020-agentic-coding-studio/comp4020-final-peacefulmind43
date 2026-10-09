@@ -138,3 +138,26 @@ While playing I asked for a visible countdown to the next move, to a tenth of a
 second, with a bar. It counts from when the turn's board arrived in the
 browser, not from the server's clock, so the two clocks never need to agree.
 It is hidden from screen readers; the slower status line still speaks.
+
+## 2026-10-09: designing the RL bot (ADR 0013)
+
+Before any training code, three decisions, each with the alternatives written
+down:
+
+- **What the bot sees:** the whole map, padded to the largest size and flipped
+  so every bot attacks to the right. A window around itself would fit any map
+  but hide what teammates are doing, which is what teamwork is made of, and
+  would see less than a person does.
+- **What it's rewarded for:** +1/−1 to the whole team per capture, plus
+  potential-based shaping towards the current objective that fades to nothing
+  over the first half of training. Shaping of that form can't be farmed
+  (walking there and back earns exactly zero), unlike rewards for events such
+  as picking up the flag. Team rewards, because rewarding whoever scores
+  teaches a bot to take the glory instead of helping.
+- **How it trains:** PPO, one network shared by every seat, against the
+  scripted bots until crit 9, evaluated on maps it never trained on.
+
+The observation lives in one file used by both training and the server. Its
+key test: in a game and its mirror image (flipped left to right, teams
+swapped), each blue player sees exactly what the matching red player sees, at
+every turn. That is what lets one network play both sides.

@@ -37,7 +37,7 @@ jobs:
         # the rules (doc/adr/0010), tested without a server; the engine uses
         # only the standard library, so pytest is all it needs
         run: |
-          python -m pip install --quiet pytest
+          python -m pip install --quiet pytest numpy==2.5.3
           python -m pytest -q tests
       - name: Build and start the app
         # the same image Fly deploys, with a throwaway /data in place of the
