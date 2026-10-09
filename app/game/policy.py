@@ -64,6 +64,13 @@ def load(name: str) -> Policy | None:
     return Policy(path) if path.exists() else None
 
 
+def on_show() -> Policy | None:
+    """The bot named in BOT_DIR/watch.txt, shown in the watch arena against the
+    scripted bot, whether or not it is good enough to fill people's seats yet."""
+    pointer = BOT_DIR / "watch.txt"
+    return load(pointer.read_text().strip()) if pointer.exists() else None
+
+
 def deployed() -> Policy | None:
     """The bot named in BOT_DIR/current.txt, if there is one. Without it, the
     scripted bots fill every seat (ADR 0013: they are the fallback)."""

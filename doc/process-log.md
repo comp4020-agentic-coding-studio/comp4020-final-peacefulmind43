@@ -270,3 +270,14 @@ defender that chases. It learned exactly the level it trained at. Training
 continues from these weights at level 0.2 (30M samples, no shaping). A bot
 that only charges would be the opposite of the teammate the README promises,
 so it isn't deployed until it plays close to the scripted bot.
+
+## 2026-10-10: a place to watch the trained bot
+
+Since the trained bot isn't good enough to be anyone's teammate yet, people
+can watch it instead: `/?watch` opens a bots-only arena where blue is the
+trained bot on show and red the scripted bot. Nobody sits, it only runs while
+someone is watching, and its matches aren't saved, so the promise that every
+saved match had a person in it still holds. Each team can now have its own
+bot, and the bot on show (`watch.txt`) is separate from the one that fills
+people's seats (`current.txt`, none yet), so a bot can be shown honestly
+before it is trusted with a seat.

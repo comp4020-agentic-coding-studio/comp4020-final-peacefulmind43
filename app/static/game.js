@@ -148,7 +148,12 @@
     drawMap();
     drawSeats();
     drawTick(snap.tick);
-    if (snap.bench) {
+    if (watching) {
+      const blue = seats.find((s) => s.team === "blue")?.bot;
+      const red = seats.find((s) => s.team === "red")?.bot;
+      $("you").textContent = `Watching: blue is the ${blue === "scripted" ? "scripted" : `trained bot (${blue})`}, red the ${red === "scripted" ? "scripted bot" : red}.`;
+      notice("");
+    } else if (snap.bench) {
       $("you").textContent = "Every seat has a person in it.";
       notice("You're on the bench: you'll play from the next match, which grows to 3 a side.");
     } else if (!snap.tick.break) {
@@ -159,7 +164,13 @@
   // --- the connection ---------------------------------------------------------
 
   const params = new URLSearchParams(location.search);
-  const stream = new EventSource(`/arena/events${params.get("arena") ? `?arena=${encodeURIComponent(params.get("arena"))}` : ""}`);
+  const watching = params.has("watch"); // bots only: nobody sits
+  const arenaId = watching ? "watch" : params.get("arena");
+  if (watching) {
+    document.querySelector(".pad").hidden = true;
+    document.querySelector(".board-hint").hidden = true;
+  }
+  const stream = new EventSource(`/arena/events${arenaId ? `?arena=${encodeURIComponent(arenaId)}` : ""}`);
   stream.addEventListener("snapshot", (e) => begin(JSON.parse(e.data)));
   stream.addEventListener("match", (e) => {
     begin(JSON.parse(e.data));

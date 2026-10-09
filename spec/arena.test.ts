@@ -206,6 +206,18 @@ it.runIf(operatorKey)("saves a finished match, then starts the next one", async 
   expect(saved.score).toEqual(over.data.score);
 }, 15000);
 
+it("lets people watch bots play without taking a seat or saving the match", async () => {
+  const s = await watch(await newVisitor(), "watch");
+  const snap = (await snapshot(s)).data;
+  expect(snap.you).toBeNull();
+  expect(snap.seats.every((seat: any) => seat.kind === "bot")).toBe(true);
+  expect(snap.seats.find((seat: any) => seat.team === "red").bot).toBe("scripted");
+  expect(snap.match.id, "a match nobody played isn't saved").toBeNull();
+  const a = await nextTick(s);
+  const b = await nextTick(s);
+  expect(b.data.tick).toBeGreaterThan(a.data.tick);
+});
+
 it("refuses a choice from someone without a seat, and private arenas without the operator key", async () => {
   expect((await choose(await newVisitor(), EAST, 1)).status).toBe(409);
   const res = await fetch(url("/api/arenas"), {

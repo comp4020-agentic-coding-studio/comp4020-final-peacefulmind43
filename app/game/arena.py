@@ -80,7 +80,7 @@ class Page:
 @dataclass
 class Arena:
     id: str
-    kind: str  # "shared" or "private"
+    kind: str  # "shared", "private", or "watch" (bots only, for people to watch)
     team_size: int
     seed: int
     max_ticks: int = engine.MAX_TICKS
@@ -94,7 +94,7 @@ class Arena:
     matches_played: int = 0
     break_until: float = 0.0  # > 0 while between matches
     turn_opened: float = 0.0
-    bot_name: str = "scripted"  # set by the hall: the trained bot's name, or "scripted"
+    team_bots: tuple = (None, None)  # set by the hall: each team's trained bot, or None for scripted
     empty_since: float = 0.0
     spans: list[tuple[int, str, int, int]] = field(default_factory=list)  # seat, visitor, from, to
 
@@ -111,10 +111,14 @@ class Arena:
                     "label": label(s.owner) if s.human else "Bot",
                     "covering": label(s.owner) if s.owner and s.covering else None,
                     # which bot plays the seat, so people can see what they're up against
-                    "bot": None if s.human else self.bot_name,
+                    "bot": None if s.human else self.bot_name(s.team),
                 }
             )
         return out
+
+    def bot_name(self, team: int) -> str:
+        bot = self.team_bots[team]
+        return bot.name if bot else "scripted"
 
     def match_view(self) -> dict:
         m = self.state.map
@@ -178,6 +182,7 @@ class Hall:
 
     def __init__(self, store, bot: "policy.Policy | None" = None):
         self.bot = bot  # the trained bot that fills empty seats, or None for scripted bots
+        self.watch_bot = None  # the trained bot shown in the watch arena (may differ from self.bot)
         self.arenas: dict[str, Arena] = {}
         self.store = store  # saves matches off the tick (see app/game/store.py)
         self.on_log = None  # set by the app: (kind, visitor_id, detail) for the activity log
@@ -194,13 +199,25 @@ class Hall:
         if len(self.arenas) >= MAX_ARENAS and arena_id not in self.arenas:
             raise RuntimeError("too many arenas")
         arena = Arena(arena_id, kind, team_size, seed, **options)
-        arena.bot_name = self.bot.name if self.bot else "scripted"
+        arena.team_bots = (self.bot, self.bot)
         self.arenas[arena_id] = arena
+        return arena
+
+    def watch(self) -> Arena:
+        """Bots only: blue is the trained bot on show, red the scripted bot.
+        Nobody sits; people watch. It runs only while someone is watching, and
+        its matches aren't saved, since nobody played them."""
+        arena = self.arenas.get("watch")
+        if arena is None:
+            arena = self.open_arena("watch", "watch", 2, secrets.randbelow(2**32), deadline=0.25)
+            arena.team_bots = (self.watch_bot or self.bot, None)
         return arena
 
     def start_match(self, arena: Arena, people: list[str]) -> None:
         if arena.kind == "shared":
             arena.team_size = 2 if len(people) <= 4 else 3
+        if arena.kind == "watch":
+            arena.team_size = 2 if arena.matches_played % 2 == 0 else 3  # show both sizes
         seed = arena.seed + arena.matches_played if arena.kind == "private" else secrets.randbelow(2**32)
         arena.state = engine.new_game(seed, arena.team_size)
         arena.state.max_ticks = arena.max_ticks
@@ -210,7 +227,7 @@ class Hall:
         arena.spans = []
         arena.break_until = 0.0
         arena.turn_opened = time.monotonic()
-        arena.match_id = self.store.start(arena)
+        arena.match_id = None if arena.kind == "watch" else self.store.start(arena)
         for visitor_id in people:
             self.seat_person(arena, visitor_id, announce=False)
         for page in arena.pages:
@@ -221,7 +238,8 @@ class Hall:
         for i, seat in enumerate(arena.seats):
             if seat.owner:
                 arena.spans.append((i, seat.owner, seat.since_tick, s.tick))
-        self.store.finish(arena.match_id, s, list(arena.spans))
+        if arena.match_id is not None:
+            self.store.finish(arena.match_id, s, list(arena.spans))
         arena.tell_all("over", {"match_id": arena.match_id, "score": list(s.score)})
         if self.on_log:
             self.on_log("match_end", None, {"arena": arena.id, "score": f"{s.score[0]}-{s.score[1]}"})
@@ -261,6 +279,14 @@ class Hall:
 
     def arrive(self, visitor_id: str, arena_id: str | None) -> tuple[Arena, Page]:
         """A page opened. Reattach to the person's seat, or find them one."""
+        if arena_id == "watch":
+            arena = self.watch()
+            if arena.state is None:
+                self.start_match(arena, people=[])
+            page = Page(visitor_id)
+            arena.pages.append(page)
+            page.send("snapshot", arena.snapshot(visitor_id))
+            return arena, page
         arena = self.find(visitor_id)
         if arena is not None and arena_id and arena.id != arena_id:
             self.release(arena, visitor_id)  # moving to another arena
@@ -381,9 +407,15 @@ class Hall:
                 return
         if arena.state is None:
             return  # idle: nobody here
+        if arena.kind == "watch" and not arena.pages:
+            arena.state, arena.break_until = None, 0.0  # nobody watching
+            return
         if arena.break_until:
             if now >= arena.break_until:
                 present = [v for v in arena.people() if any(p.visitor_id == v for p in arena.pages)]
+                if arena.kind == "watch" and arena.pages:
+                    self.start_match(arena, [])
+                    return
                 if not present:
                     arena.state, arena.match_id, arena.break_until = None, None, 0.0
                     arena.seats, arena.bench = [], []
@@ -426,8 +458,8 @@ class Hall:
         for i, seat in enumerate(arena.seats):
             if seat.human:
                 actions.append(seat.choice if seat.choice is not None else engine.STAY)
-            elif self.bot is not None:
-                actions.append(self.bot.action(s, i))
+            elif arena.team_bots[seat.team] is not None:
+                actions.append(arena.team_bots[seat.team].action(s, i))
             else:
                 actions.append(bots.scripted_action(s, i))
             seat.choice = None

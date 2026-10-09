@@ -28,6 +28,7 @@ COOKIE = "visitor"
 from .game import policy  # noqa: E402
 
 hall = Hall(Store(), bot=policy.deployed())
+hall.watch_bot = policy.on_show()
 
 
 def log_soon(kind: str, visitor_id: str | None, detail: dict) -> None:
