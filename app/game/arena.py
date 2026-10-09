@@ -178,11 +178,13 @@ class Hall:
         return self.arenas.get("main") or self.open_arena("main", "shared", 2, secrets.randbelow(2**32))
 
     def open_arena(self, arena_id: str, kind: str, team_size: int, seed: int, **options) -> Arena:
+        """An arena waits, idle, until the first person arrives, and goes idle
+        again when a match ends with nobody there: bots never play matches for
+        nobody, and every saved match had a person in it."""
         if len(self.arenas) >= MAX_ARENAS and arena_id not in self.arenas:
             raise RuntimeError("too many arenas")
         arena = Arena(arena_id, kind, team_size, seed, **options)
         self.arenas[arena_id] = arena
-        self.start_match(arena, people=[])
         return arena
 
     def start_match(self, arena: Arena, people: list[str]) -> None:
@@ -258,7 +260,9 @@ class Hall:
                     raise KeyError(arena_id)
             else:
                 arena = self.place_in_shared(visitor_id)
-            if visitor_id not in arena.people():
+            if arena.state is None:
+                self.start_match(arena, people=[visitor_id])  # an idle arena wakes for them
+            elif visitor_id not in arena.people():
                 self.seat_person(arena, visitor_id)
         page = Page(visitor_id)
         arena.pages.append(page)
@@ -355,9 +359,23 @@ class Hall:
                 print(json.dumps({"event": "slow_tick", "ms": round(spent * 1000), "late_ms": round(late * 1000)}), flush=True)
 
     def tick(self, arena: Arena, now: float) -> None:
+        if arena.kind == "private":
+            if arena.pages:
+                arena.empty_since = 0.0
+            elif not arena.empty_since:
+                arena.empty_since = now
+            elif now - arena.empty_since > PRIVATE_IDLE_SECONDS:
+                self.arenas.pop(arena.id, None)
+                return
+        if arena.state is None:
+            return  # idle: nobody here
         if arena.break_until:
             if now >= arena.break_until:
                 present = [v for v in arena.people() if any(p.visitor_id == v for p in arena.pages)]
+                if not present:
+                    arena.state, arena.match_id, arena.break_until = None, None, 0.0
+                    arena.seats, arena.bench = [], []
+                    return
                 self.start_match(arena, present)
             return
 
@@ -399,11 +417,3 @@ class Hall:
             page.offer_tick(view)
         if s.done:
             self.end_match(arena, now)
-
-        if arena.kind == "private":
-            if arena.pages:
-                arena.empty_since = 0.0
-            elif not arena.empty_since:
-                arena.empty_since = now
-            elif now - arena.empty_since > PRIVATE_IDLE_SECONDS:
-                self.arenas.pop(arena.id, None)

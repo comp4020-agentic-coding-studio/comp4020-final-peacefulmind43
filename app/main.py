@@ -46,7 +46,7 @@ async def lifespan(_: FastAPI):
     if interrupted:
         print(json.dumps({"event": "matches_interrupted", "count": interrupted}), flush=True)
     hall.on_log = log_soon
-    hall.shared()
+    hall.shared()  # idle until someone arrives
     ticker = asyncio.create_task(hall.run())
     yield
     ticker.cancel()
@@ -157,6 +157,22 @@ async def create_arena(request: Request):
     except RuntimeError:
         raise HTTPException(503, "Too many arenas are open. Try again in a minute.")
     return {"id": arena.id}
+
+
+@app.get("/api/matches/recent")
+async def api_recent_matches():
+    """The last 20 finished matches, with how many people played in each."""
+    with db.connect() as conn:
+        rows = conn.execute(
+            """SELECT m.id, m.arena, m.score_blue, m.score_red, m.ticks, m.team_size, m.ended_at,
+                      (SELECT count(DISTINCT visitor_id) FROM seat_spans s WHERE s.match_id = m.id) AS people
+               FROM matches m WHERE m.status = 'finished' ORDER BY m.id DESC LIMIT 20"""
+        ).fetchall()
+    return [
+        {"id": r["id"], "arena": r["arena"], "score": [r["score_blue"], r["score_red"]], "ticks": r["ticks"],
+         "team_size": r["team_size"], "people": r["people"], "ended_at": r["ended_at"]}
+        for r in rows
+    ]
 
 
 @app.get("/api/matches/{match_id}")

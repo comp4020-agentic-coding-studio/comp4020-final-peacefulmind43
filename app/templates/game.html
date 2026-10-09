@@ -1,7 +1,47 @@
 {% extends "base.html" %}
 {% block main %}
 <h1>Capture the flag</h1>
-<p class="lead">Two teams on a small grid. Carry the other team's flag home to score. Empty seats are filled by bots,
-  so you can play alone with a bot teammate, or with friends.</p>
-<p>The game is being built. <a href="/readme/">Read about it</a>.</p>
+<p class="lead">Two teams on a small grid. Step on the other team's flag, then carry it back to your base to score.
+  On your own half you catch anyone from the other team you touch; on theirs, they catch you.
+  Empty seats are played by bots, so you can play alone with a bot teammate, or with friends:
+  anyone who opens this page joins the same game.</p>
+
+<section class="game" aria-labelledby="game-heading">
+  <h2 id="game-heading" class="visually-hidden">The game</h2>
+  <div class="scorebar" aria-live="off">
+    <span class="team blue">Blue <strong data-field="score-blue">0</strong></span>
+    <span class="clock" data-field="clock">3:00</span>
+    <span class="team red"><strong data-field="score-red">0</strong> Red</span>
+  </div>
+  <p class="you" data-field="you">Connecting…</p>
+
+  <div class="board-wrap">
+    <div class="board" tabindex="0" data-field="board-focus"
+         aria-label="Game board. Use the arrow keys or W A S D to move, space to stand still.">
+      <svg data-field="board" role="img" aria-label="The map, the players and the flags" viewBox="0 0 16 10"
+           preserveAspectRatio="xMidYMid meet"></svg>
+    </div>
+    <p class="board-hint">Click the board, then use the arrow keys or W A S D. Space stands still.</p>
+  </div>
+
+  <div class="pad" role="group" aria-label="Move">
+    <button type="button" data-dir="1" aria-label="Move up">▲</button>
+    <button type="button" data-dir="4" aria-label="Move left">◀</button>
+    <button type="button" data-dir="0" aria-label="Stand still">●</button>
+    <button type="button" data-dir="3" aria-label="Move right">▶</button>
+    <button type="button" data-dir="2" aria-label="Move down">▼</button>
+  </div>
+
+  <p class="notice" data-field="notice" hidden></p>
+  <p class="status" data-field="status">Not connected yet.</p>
+
+  <h3>Players</h3>
+  <ul class="roster" data-field="roster"></ul>
+
+  <h3>What just happened</h3>
+  <ol class="moments" data-field="moments" aria-live="polite"></ol>
+</section>
+
+<noscript><p>The game runs in your browser and needs JavaScript.</p></noscript>
+<script src="/static/game.js" defer></script>
 {% endblock %}

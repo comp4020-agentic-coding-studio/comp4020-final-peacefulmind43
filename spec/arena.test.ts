@@ -16,7 +16,8 @@ afterEach(() => {
 });
 
 const snapshot = (s: Stream) => s.waitFor((e) => e.event === "snapshot", 3000);
-const nextTick = (s: Stream, from = s.events.length) => s.waitFor((e) => e.event === "tick", 2000, from);
+// A match may be between matches (a 10 s break) when someone arrives.
+const nextTick = (s: Stream, from = s.events.length, ms = 2000) => s.waitFor((e) => e.event === "tick", ms, from);
 const STAY = 0, EAST = 3, WEST = 4;
 
 it("puts two visitors who open the game in the same match, and shows each other's moves within a second", async () => {
@@ -29,16 +30,36 @@ it("puts two visitors who open the game in the same match, and shows each other'
   const seatB = snapB.data.you;
   expect(seatB).not.toBeNull();
 
-  const before = (await nextTick(sa)).data.players[seatB];
+  // B took over a bot's seat; if that bot was waiting to respawn, wait for B to be back on the board
+  const before = (
+    await sa.waitFor((e) => e.event === "tick" && e.data.players[seatB].respawn === 0, 12000)
+  ).data.players[seatB];
+  // hold a direction B can actually move in: not a wall, not off the map, not B's own flag
+  const map = snapB.data.match.map;
+  const team = snapB.data.seats[seatB].team === "blue" ? 0 : 1;
+  const blocked = (x: number, y: number) =>
+    x < 0 || y < 0 || x >= map.width || y >= map.height ||
+    map.walls.some(([wx, wy]: number[]) => wx === x && wy === y) ||
+    (map.flags[team][0] === x && map.flags[team][1] === y);
+  const steps: [number, number, number][] = [[EAST, 1, 0], [WEST, -1, 0], [1, 0, -1], [2, 0, 1]];
+  const [dir] = steps.find(([, dx, dy]) => !blocked(before.x + dx, before.y + dy))!;
   const sentAt = Date.now();
   const from = sa.events.length;
-  for (const dir of [EAST, WEST, 1, 2]) await sendInput(b, dir, false, Date.now() + dir);
+  await sendInput(b, dir, true, 1);
   const moved = await sa.waitFor(
     (e) => e.event === "tick" && (e.data.players[seatB].x !== before.x || e.data.players[seatB].y !== before.y),
     3000,
     from,
   );
   expect(moved.at - sentAt).toBeLessThan(1000);
+}, 20000);
+
+it("starts a fresh match for the first person to arrive, and plays no matches for nobody", async () => {
+  // ADR 0011: an empty shared arena idles; saved matches all had a person in them
+  const res = await fetch(url("/api/matches/recent"));
+  expect(res.status).toBe(200);
+  const recent = (await res.json()) as { people: number }[];
+  for (const m of recent) expect(m.people, "a saved match with nobody in it").toBeGreaterThan(0);
 });
 
 it.runIf(operatorKey)("lets a visitor alone play with bots in every other seat", async () => {
