@@ -309,3 +309,13 @@ The threshold change still stands on its own reasoning: at 62% wins the bot
 was losing only 9% of games; the rest were draws, and draws are common in
 this game (scripted against itself draws 43%). A 70% win bar treats a
 defended draw as failure. It is 60% from here on.
+
+## 2026-10-10: a live view for a demo told from the logs
+
+Crit 10's demo is narrated from the logs alone while classmates play. `/log`
+now opens with "Right now": every arena's score and turn, and for each seat who
+is in it (public label, or which bot), how many choices that person made in the
+last minute, and their pickups, captures and times caught this match. It reads
+the server's memory, not the database, and refreshes every two seconds. A
+person who stops choosing shows up at once, which is what a takeover story
+needs.

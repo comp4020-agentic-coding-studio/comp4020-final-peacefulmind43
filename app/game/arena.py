@@ -98,6 +98,7 @@ class Arena:
     empty_since: float = 0.0
     spans: list[tuple[int, str, int, int]] = field(default_factory=list)  # seat, visitor, from, to
     replay: list[list[int]] = field(default_factory=list)  # every turn's actions, for ADR 0014
+    tally: dict = field(default_factory=dict)  # (seat, "pickup"/"capture"/"tag") -> count this match, for /log
 
     # --- what pages are told -------------------------------------------------
 
@@ -181,9 +182,35 @@ class Arena:
 class Hall:
     """All the arenas, the ticker, and the rules for who sits where."""
 
+    def now(self) -> list[dict]:
+        """What is happening in every arena right now, for the live log view
+        (crit 10): who sits where, how active each person is, what they did."""
+        cutoff = time.monotonic() - 60
+        out = []
+        for arena in self.arenas.values():
+            if arena.state is None:
+                continue
+            seats = []
+            for i, seat in enumerate(arena.seats):
+                recent = self.recent_choices.get(seat.owner, []) if seat.owner else []
+                seats.append({
+                    **arena.seat_view()[i],
+                    "choices_last_minute": sum(1 for t in recent if t >= cutoff),
+                    "pickups": arena.tally.get((i, "pickup"), 0),
+                    "captures": arena.tally.get((i, "capture"), 0),
+                    "caught": arena.tally.get((i, "tag"), 0),
+                })
+            out.append({
+                "arena": arena.id, "kind": arena.kind, "match": arena.match_id, "turn": arena.state.tick,
+                "score": list(arena.state.score), "watching": len(arena.pages), "bench": len(arena.bench),
+                "seats": seats,
+            })
+        return out
+
     def __init__(self, store, bot: "policy.Policy | None" = None):
         self.bot = bot  # the trained bot that fills empty seats, or None for scripted bots
         self.watch_bot = None  # the trained bot shown in the watch arena (may differ from self.bot)
+        self.recent_choices: dict[str, list[float]] = {}  # visitor -> times of recent choices, for /log
         self.arenas: dict[str, Arena] = {}
         self.store = store  # saves matches off the tick (see app/game/store.py)
         self.on_log = None  # set by the app: (kind, visitor_id, detail) for the activity log
@@ -227,6 +254,7 @@ class Hall:
         arena.bench = []
         arena.spans = []
         arena.replay = []
+        arena.tally = {}
         arena.break_until = 0.0
         arena.turn_opened = time.monotonic()
         arena.match_id = None if arena.kind == "watch" else self.store.start(arena)
@@ -372,6 +400,10 @@ class Hall:
             arena.tell_all("moment", {"kind": "reclaim", "seat": i, "label": label(visitor_id)})
         first = seat.choice is None
         seat.choice = direction
+        times = self.recent_choices.setdefault(visitor_id, [])
+        times.append(time.monotonic())
+        if len(times) > 200:  # only the last minute matters; keep the list short
+            del times[:100]
         if first:  # everyone sees who is ready, not what they chose
             arena.tell_all("chosen", {"seat": i, "turn": arena.state.tick})
         return {"accepted": True, "arena": arena.id, "match": arena.match_id, "seat": i, "turn": arena.state.tick}
@@ -472,6 +504,7 @@ class Hall:
 
         for name, i in events:
             if name in ("tag", "pickup", "capture"):
+                arena.tally[(i, name)] = arena.tally.get((i, name), 0) + 1
                 seat = arena.seats[i]
                 arena.tell_all("moment", {"kind": name, "seat": i, "label": label(seat.owner) if seat.human else "Bot"})
                 if self.on_log and arena.match_id is not None:  # the story of a match, for /log

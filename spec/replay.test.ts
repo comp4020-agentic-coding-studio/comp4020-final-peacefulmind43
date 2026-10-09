@@ -62,3 +62,19 @@ it.runIf(operatorKey)("logs every choice with who, what and when", async () => {
 it("refuses a replay of a match that doesn't exist", async () => {
   expect((await fetch(url("/api/matches/999999999/replay"))).status).toBe(404);
 });
+
+it.runIf(operatorKey)("shows, live, who is in each arena and how active they are", async () => {
+  const { id } = await createArena({ team_size: 2, seed: 777, deadline_seconds: 0.5 });
+  const me = await newVisitor();
+  const s = await openStream(me, `/arena/events?arena=${id}`);
+  open.push(s);
+  const seat = (await s.waitFor((e) => e.event === "snapshot", 3000)).data.you;
+  const t = await s.waitFor((e) => e.event === "tick", 3000);
+  await choose(me, 3, 1, t.data.tick);
+  const now = (await (await fetch(url("/api/now"))).json()) as any[];
+  const arena = now.find((a) => a.arena === id);
+  expect(arena, "the arena is in the live view").toBeDefined();
+  expect(arena.seats[seat]).toMatchObject({ kind: "human", label: expect.stringMatching(/^Visitor /) });
+  expect(arena.seats[seat].choices_last_minute).toBeGreaterThanOrEqual(1);
+  expect(JSON.stringify(now)).not.toMatch(/visitor=/);
+});

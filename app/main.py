@@ -287,6 +287,13 @@ async def api_log():
         return log_snapshot(conn)
 
 
+@app.get("/api/now")
+async def api_now():
+    """Every arena right now: seats, activity in the last minute, pickups and
+    captures this match. The live view for crit 10's demo."""
+    return hall.now()
+
+
 @app.get("/log/events")
 async def log_events():
     queue: asyncio.Queue = asyncio.Queue()

@@ -29,6 +29,49 @@
   refreshTimes();
   setInterval(refreshTimes, 30000);
 
+  // "Right now": every arena's seats, refreshed every 2 seconds
+  const now = document.querySelector('[data-field="now"]');
+  function cell(tag, text) {
+    const el = document.createElement(tag);
+    el.textContent = text;
+    return el;
+  }
+  async function drawNow() {
+    const res = await fetch("/api/now");
+    if (!res.ok || !now) return;
+    const arenas = await res.json();
+    if (!arenas.length) return now.replaceChildren(cell("p", "Nobody is playing."));
+    now.replaceChildren(...arenas.map((a) => {
+      const box = document.createElement("div");
+      box.className = "now-arena";
+      box.append(cell("h3", `${a.arena}: blue ${a.score[0]}, red ${a.score[1]}, turn ${a.turn}` +
+        `${a.watching ? ` · ${a.watching} watching` : ""}${a.bench ? ` · ${a.bench} on the bench` : ""}`));
+      const table = document.createElement("table");
+      const head = document.createElement("tr");
+      for (const h of ["Seat", "Team", "Who", "Choices in the last minute", "Pickups", "Captures", "Caught"]) {
+        const th = cell("th", h);
+        th.scope = "col";
+        head.append(th);
+      }
+      table.append(head);
+      for (const s of a.seats) {
+        const tr = document.createElement("tr");
+        const who = s.kind === "human" ? s.label : s.covering ? `bot covering ${s.covering}` : `${s.bot} bot`;
+        for (const v of [s.seat + 1, s.team, who, s.kind === "human" ? s.choices_last_minute : "–", s.pickups, s.captures, s.caught]) {
+          tr.append(cell("td", String(v)));
+        }
+        table.append(tr);
+      }
+      const wrap = document.createElement("div");
+      wrap.className = "table-wrap";
+      wrap.append(table);
+      box.append(wrap);
+      return box;
+    }));
+  }
+  drawNow();
+  setInterval(drawNow, 2000);
+
   if (!("EventSource" in window)) return;
   const stream = new EventSource("/log/events");
   stream.addEventListener("snapshot", () => {
