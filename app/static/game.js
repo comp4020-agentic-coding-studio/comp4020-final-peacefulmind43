@@ -16,6 +16,7 @@
   let turn = 0; // the turn now open
   let deadline = 2; // seconds a turn waits for people
   let chosen = new Set(); // seats that have chosen this turn
+  let breakUntil = 0; // when the break between matches ends
   let held = null; // a direction held down (key or pad): chosen again each turn
   let heldSince = 0; // when it was pressed
   // A press only counts as holding after this long, like a keyboard's own
@@ -93,7 +94,10 @@
         ? `You were caught. Back in ${me.respawn} turns.`
         : `You are player ${you + 1}, on ${seats[you].team}.${me.carrying ? " You have their flag: get home!" : ""}`;
     }
-    if (t.break) notice(`Next match in ${Math.ceil(t.break)} s.`);
+    if (t.break) {
+      notice(`Next match in ${Math.ceil(t.break)} s.`);
+      breakUntil = performance.now() + t.break * 1000;
+    }
     drawSeats();
     if (held !== null && !t.break) walkOn(held, t.tick); // a held direction walks on, one step a turn
   }
@@ -135,6 +139,7 @@
   }
 
   function begin(snap) {
+    breakUntil = 0;
     match = snap.match;
     deadline = match.deadline_seconds;
     seats = snap.seats;
@@ -192,6 +197,25 @@
   });
   stream.onopen = () => ($("status").textContent = "Connected.");
   stream.onerror = () => ($("status").textContent = "Connection lost. Reconnecting…");
+  // The countdown to the next move, to a tenth of a second. It counts from when
+  // this turn's board arrived, not from the server's clock, so clocks that
+  // disagree don't matter. (The screen-reader status below updates less often.)
+  setInterval(() => {
+    const text = $("countdown");
+    const bar = $("timer-bar");
+    if (!lastTick || !match) return;
+    const now = performance.now();
+    if (breakUntil > now) {
+      text.textContent = `Next match in ${((breakUntil - now) / 1000).toFixed(1)} s`;
+      bar.style.width = "0%";
+      return;
+    }
+    const left = Math.max(0, deadline - (now - lastTick) / 1000);
+    const waiting = seats.some((s, i) => s.kind === "human" && !chosen.has(i));
+    text.textContent = waiting ? `Next move in ${left.toFixed(1)} s` : "Moving…";
+    bar.style.width = `${(left / deadline) * 100}%`;
+  }, 100);
+
   setInterval(() => {
     if (!lastTick) return;
     const quiet = (performance.now() - lastTick) / 1000;

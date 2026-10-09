@@ -176,3 +176,7 @@ svg .player, svg .flag { transition: transform 0.2s linear; }
 .roster li.red { border-color: #ef4444; }
 .roster li.me { background: var(--me); font-weight: 600; }
 .moments { padding-left: 1.2rem; color: var(--muted); }
+.countdown { display: flex; align-items: center; gap: 0.75rem; margin: 0.25rem 0 0.5rem; }
+.countdown span[data-field="countdown"] { font-variant-numeric: tabular-nums; font-weight: 600; min-width: 9.5rem; }
+.timer-bar { flex: 1; height: 0.5rem; background: var(--line); border-radius: 0.25rem; overflow: hidden; }
+.timer-bar span { display: block; height: 100%; width: 100%; background: #f0b400; transition: width 0.1s linear; }

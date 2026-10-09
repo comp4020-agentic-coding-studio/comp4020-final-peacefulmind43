@@ -131,3 +131,10 @@ page took the press for holding. A press now counts as holding only after
 [`b0baeab`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-peacefulmind43/commit/b0baeab).
 Tests show the system follows its rules; only playing it shows whether it is
 pleasant to use.
+
+## 2026-10-09: a countdown for every turn
+
+While playing I asked for a visible countdown to the next move, to a tenth of a
+second, with a bar. It counts from when the turn's board arrived in the
+browser, not from the server's clock, so the two clocks never need to agree.
+It is hidden from screen readers; the slower status line still speaks.
