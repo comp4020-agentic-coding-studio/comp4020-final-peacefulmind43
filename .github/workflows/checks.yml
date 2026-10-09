@@ -69,7 +69,11 @@ jobs:
         uses: trufflesecurity/trufflehog@6f3c981e7b77f235fd2702dd74af25fc4b72bf11 # v3.96.0
         with:
           version: "3.96.0"
-          extra_args: --only-verified
+          # Lob is excluded in this repo only: 3.96.0 reported a pytest function
+          # name in tests/test_engine.py as a "verified" Lob key. The repo has
+          # never used Lob, and TruffleHog 3.99.2 finds nothing in its whole
+          # history, verified or not. Every other detector still runs.
+          extra_args: --only-verified --exclude-detectors=Lob
       - name: Scan for a committed course key
         # A course key has no verifier a runner can reach, so this pass
         # matches its shape instead (.github/trufflehog.yml).

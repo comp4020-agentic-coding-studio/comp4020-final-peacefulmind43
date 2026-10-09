@@ -319,3 +319,18 @@ last minute, and their pickups, captures and times caught this match. It reads
 the server's memory, not the database, and refreshes every two seconds. A
 person who stops choosing shows up at once, which is what a takeover story
 needs.
+
+## 2026-10-10: the first merge was stopped by CI, correctly
+
+Merging to `main` ran the full checks in the real Docker image for the first
+time. The spec and the engine tests passed; the secret scan failed, reporting a
+"verified" Lob API key at `tests/test_engine.py` line 115, which is the name of
+a pytest function. Nothing was deployed, which is the point of the gate.
+
+Before changing anything, I ran TruffleHog locally over the whole history: it
+found nothing at all, verified or not. The local binary was 3.99.2; CI pins
+3.96.0, whose Lob pattern matched the function name (verification calls Lob's
+API, so it can also succeed by accident). The repo has never used Lob. The fix
+excludes that one detector in this repo, with the reason in the workflow;
+every other detector still runs. The course page says to fix a step that
+misfires on a site with nothing wrong in it, and this was the narrowest fix.
