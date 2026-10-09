@@ -62,3 +62,12 @@ class Policy:
 def load(name: str) -> Policy | None:
     path = BOT_DIR / f"{name}.npz"
     return Policy(path) if path.exists() else None
+
+
+def deployed() -> Policy | None:
+    """The bot named in BOT_DIR/current.txt, if there is one. Without it, the
+    scripted bots fill every seat (ADR 0013: they are the fallback)."""
+    pointer = BOT_DIR / "current.txt"
+    if not pointer.exists():
+        return None
+    return load(pointer.read_text().strip())

@@ -18,7 +18,7 @@ import time
 from dataclasses import dataclass, field
 
 from ..activity import visitor_label as label
-from . import bots, engine
+from . import bots, engine, policy
 
 CHECK_HZ = 20  # how often arenas are checked for a turn that is ready
 CHECK_PERIOD = 1 / CHECK_HZ
@@ -94,6 +94,7 @@ class Arena:
     matches_played: int = 0
     break_until: float = 0.0  # > 0 while between matches
     turn_opened: float = 0.0
+    bot_name: str = "scripted"  # set by the hall: the trained bot's name, or "scripted"
     empty_since: float = 0.0
     spans: list[tuple[int, str, int, int]] = field(default_factory=list)  # seat, visitor, from, to
 
@@ -109,6 +110,8 @@ class Arena:
                     "kind": "human" if s.human else "bot",
                     "label": label(s.owner) if s.human else "Bot",
                     "covering": label(s.owner) if s.owner and s.covering else None,
+                    # which bot plays the seat, so people can see what they're up against
+                    "bot": None if s.human else self.bot_name,
                 }
             )
         return out
@@ -173,7 +176,8 @@ class Arena:
 class Hall:
     """All the arenas, the ticker, and the rules for who sits where."""
 
-    def __init__(self, store):
+    def __init__(self, store, bot: "policy.Policy | None" = None):
+        self.bot = bot  # the trained bot that fills empty seats, or None for scripted bots
         self.arenas: dict[str, Arena] = {}
         self.store = store  # saves matches off the tick (see app/game/store.py)
         self.on_log = None  # set by the app: (kind, visitor_id, detail) for the activity log
@@ -190,6 +194,7 @@ class Hall:
         if len(self.arenas) >= MAX_ARENAS and arena_id not in self.arenas:
             raise RuntimeError("too many arenas")
         arena = Arena(arena_id, kind, team_size, seed, **options)
+        arena.bot_name = self.bot.name if self.bot else "scripted"
         self.arenas[arena_id] = arena
         return arena
 
@@ -421,6 +426,8 @@ class Hall:
         for i, seat in enumerate(arena.seats):
             if seat.human:
                 actions.append(seat.choice if seat.choice is not None else engine.STAY)
+            elif self.bot is not None:
+                actions.append(self.bot.action(s, i))
             else:
                 actions.append(bots.scripted_action(s, i))
             seat.choice = None

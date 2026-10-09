@@ -25,7 +25,9 @@ HERE = Path(__file__).resolve().parent
 COOKIE = "visitor"
 
 
-hall = Hall(Store())
+from .game import policy  # noqa: E402
+
+hall = Hall(Store(), bot=policy.deployed())
 
 
 def log_soon(kind: str, visitor_id: str | None, detail: dict) -> None:

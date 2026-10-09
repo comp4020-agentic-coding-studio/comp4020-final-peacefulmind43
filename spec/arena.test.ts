@@ -82,6 +82,8 @@ it.runIf(operatorKey)("lets a visitor alone play with bots in every other seat",
   const humans = snap.seats.filter((seat: any) => seat.kind === "human");
   expect(humans.map((seat: any) => seat.seat)).toEqual([snap.you]);
   expect(snap.match.team_size).toBe(2);
+  // every bot seat says which bot plays it: a trained one, or the scripted fallback
+  for (const seat of snap.seats.filter((x: any) => x.kind === "bot")) expect(seat.bot).toEqual(expect.any(String));
 });
 
 it.runIf(operatorKey)("resolves a turn as soon as the only person has chosen, and at the deadline if they haven't", async () => {

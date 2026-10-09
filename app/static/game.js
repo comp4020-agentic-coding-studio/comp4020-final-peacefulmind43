@@ -116,7 +116,8 @@
       ...seats.map((s, i) => {
         const li = document.createElement("li");
         li.className = `${s.team}${i === you ? " me" : ""}`;
-        const who = s.kind === "human" ? s.label : s.covering ? `Bot, covering for ${s.covering}` : "Bot";
+        const kind = s.bot === "scripted" ? "scripted bot" : s.bot ? `trained bot (${s.bot})` : "bot";
+        const who = s.kind === "human" ? s.label : s.covering ? `${kind}, covering for ${s.covering}` : kind[0].toUpperCase() + kind.slice(1);
         const ready = s.kind === "human" ? (chosen.has(i) ? " ✓ chosen" : " … choosing") : "";
         li.textContent = `${i + 1}. ${who}${i === you ? " (you)" : ""}${ready}`;
         return li;
