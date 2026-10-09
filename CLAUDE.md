@@ -1,63 +1,71 @@
 # Harness
 
-The app is a shared research room for overlay rules on a momentum portfolio.
-`README.md` says what good means here. These rules come from it. When a rule and
-a request conflict, stop and ask.
+The app is a capture-the-flag game where people and bots share teams.
+`README.md` says what good means here; these rules come from it. When a rule
+and a request conflict, stop and ask.
 
 ## Decisions
 
 Decisions live in `doc/adr/`, one numbered file each. Read them before changing
-the stack, storage, data, or data model. To change one, write a new record that
-supersedes it. Never edit an accepted record.
+the rules, the stack, storage, the data model, or the bot. To change one, write
+a new record that supersedes it; a record not yet merged may be amended, saying
+so. The rules of the game are ADR 0010; any change to them bumps
+`RULES_VERSION` in both engines.
 
-## What the app must never do
+## What the game must never do
 
-- **Never send hold-out data before the reveal.** During a round, no page, API
-  response, or SSE event may contain a month after the round's in-sample end.
-  This includes charts, tables, error messages, and debug output.
-- **Never hide, edit, or delete a trial.** Every trial counts against the whole
-  room. A trial that disappears makes everyone's results look more trustworthy
-  than they are. The database enforces this; don't work around it.
-- **Never show other people's results to someone who hasn't tested this
-  round** (ADR 0003). This applies to every surface, including ones added later:
-  pages, the API, both event streams and the activity log. A new surface starts
-  redacted and the spec checks it as a newcomer.
+- **Never let a bot see more than a person.** Bots choose from the game state
+  as it was shown when the turn opened: never from people's choices, never
+  from anything not on screen. A bot function takes the state and a seat,
+  nothing else.
+- **Never make a person lose for being slower than a program.** A turn waits
+  for every person with the page open, up to the deadline (ADR 0012).
+- **Never stop a game because someone left.** A closed page's seat is covered
+  by a bot after the grace period; a match never waits on someone who can't
+  choose.
+- **Never play matches for nobody.** An arena with no one in it goes idle;
+  every saved match had a person in it.
+- **Never hide which bot is playing.** Every bot seat names its bot.
 - **Never log or show a visitor's cookie.** Use the public label.
-- **Never present a result as advice.** Results describe a historical momentum
-  portfolio, not SPMO and not a recommendation. Say what was tested, not what
-  to do.
-- **Never let a failed backtest crash the page.** If a computation fails, show
-  what failed and keep the room working.
+- **Never touch the database or the log inside a turn.** Write them after it,
+  or in a thread.
 
 ## How the work must be done
 
-- **Statistics need a check against a known value.** Any new metric (Sharpe,
-  drawdown, deflated Sharpe, financing cost) gets a test with a hand-checkable
-  case before it is shown to anyone.
-- **A correct statistic can still answer the wrong question.** Before a new
-  figure goes on the page, run it over a spread of real rules and look at the
-  spread. If every rule gets the same answer (the first deflated Sharpe gave
-  every rule 100%), the question is wrong, even if the formula is right. Say
-  what question the figure answers in the ADR, in words a holder would ask.
+- **Two engines, one set of rules.** `app/game/engine.py` and `spec/engine.ts`
+  implement ADR 0010 separately. Change both, and the parity spec must pass.
+- **Both teams are the same.** Anything that depends on a direction is
+  mirrored for red: bot tie-breaks, guard cells, the observation, and the
+  action the network chooses (`obs.to_engine`). The mirror tests in `tests/`
+  must pass.
+- **Try the design before trusting it.** Before a rule or balance change,
+  play scripted bots against each other over many seeds and compare numbers;
+  give each game its own randomness, or the games aren't separate samples.
+- **Play it yourself.** Tests show the rules hold, not that the game is
+  pleasant; a change to timing or input gets played by a person before it ships.
+- **Look at what a trained bot does, not just its score.** Before changing a
+  reward or a hyperparameter, watch the bot play and measure where it goes.
+- **Profile before optimising.**
+- **One observation builder.** Training and serving both use `app/game/obs.py`.
+  A bot ships only with an export whose NumPy output matches PyTorch's.
 - **Schema changes are new migration files** in `app/migrations/`, numbered in
   order. Never edit a migration that has been committed.
-- **One process.** Real-time is broadcast inside one uvicorn process. Don't add
-  workers or a second process; it would split the live updates.
-- **Fit the machine.** 256 MB of memory. No pandas, no large in-memory caches.
-- **Plain language on the page.** A first-time visitor with no finance
-  background should understand what to do. Technical detail goes behind a
-  "details" section, not in the main view.
+- **One process.** Live updates are broadcast inside one uvicorn process.
+- **Fit the machine.** 256 MB of memory; no PyTorch on the server.
+- **Write down each step that matters** in `doc/process-log.md`, and keep
+  `PROCESS.md` current.
 - **English** for everything in the repo and on the site.
 
 ## Checks
 
-`pnpm check` runs `spec/` against the running app (`APP_URL`, default
-`http://localhost:8080`). Run it before every commit that changes behaviour.
+`pnpm check` runs `spec/` against a running app (`APP_URL`, default
+`http://localhost:8080`; set `OPERATOR_KEY` to run the private-arena checks).
+`python -m pytest tests` runs the engine, observation and bot tests. Run both
+before every commit that changes behaviour.
 
-**Never point `pnpm check` at the live app.** The spec runs trials, and trials
-are permanent, so every run against `*.fly.dev` adds test trials to the real
-room's count. Run it against a local app (`DATA_DIR=.data`) or let CI run it
-against its throwaway `/data`. Check the live app by reading it, not by
-writing to it.
-When the agent gets something wrong twice, add a check or a rule here instead of
-re-prompting.
+**Never point `pnpm check` at the live app.** The spec plays matches and saves
+them. Run it against a local app (`DATA_DIR=.data`) or let CI run it against its
+throwaway `/data`. Check the live app by reading it, not by writing to it.
+
+When the agent gets something wrong twice, add a check or a rule here instead
+of re-prompting.
