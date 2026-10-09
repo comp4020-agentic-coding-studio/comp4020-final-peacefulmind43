@@ -14,7 +14,8 @@ import time
 
 subscribers: set[asyncio.Queue] = set()
 
-KINDS = {"visit", "readme", "join", "leave", "takeover", "reclaim", "match_end", "watch_start", "watch_end"}
+KINDS = {"visit", "readme", "join", "leave", "takeover", "reclaim", "match_end", "watch_start", "watch_end",
+         "tag", "pickup", "capture"}
 
 
 def visitor_label(visitor_id: str | None) -> str:
@@ -55,6 +56,9 @@ def describe(kind: str, detail: dict) -> str:
         "match_end": f"finished a match {detail.get('score', '')}".strip(),
         "watch_start": "started watching",
         "watch_end": f"stopped watching after {detail.get('seconds', 0)} s",
+        "tag": "got caught",
+        "pickup": "picked up the flag",
+        "capture": "scored!",
     }.get(kind, kind)
 
 
@@ -63,7 +67,8 @@ def view(row) -> dict:
     return {
         "id": row["id"],
         "at": row["at"],
-        "visitor": visitor_label(row["visitor_id"]),
+        "visitor": visitor_label(row["visitor_id"]) if row["visitor_id"] or row["kind"] not in ("tag", "pickup", "capture")
+        else f"A bot ({detail.get('bot') or 'scripted'})",
         "event": row["kind"],
         "text": describe(row["kind"], detail),
         "detail": detail,

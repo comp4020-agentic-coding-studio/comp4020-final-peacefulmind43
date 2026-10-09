@@ -6,6 +6,7 @@ thread, so a slow disk can't delay the next tick.
 """
 
 import asyncio
+import json
 import time
 
 from .. import db
@@ -23,15 +24,16 @@ class Store:
             )
             return cur.lastrowid
 
-    def finish(self, match_id: int, state: engine.State, spans: list) -> None:
-        score, ticks = list(state.score), state.tick
+    def finish(self, match_id: int, state: engine.State, spans: list, replay: list | None = None) -> None:
+        score, ticks, final = list(state.score), state.tick, engine.state_hash(state)
+        args = (match_id, score, ticks, spans, replay or [], final)
         try:
-            asyncio.get_running_loop().run_in_executor(None, self._finish, match_id, score, ticks, spans)
+            asyncio.get_running_loop().run_in_executor(None, self._finish, *args)
         except RuntimeError:  # no event loop (tests, scripts): save directly
-            self._finish(match_id, score, ticks, spans)
+            self._finish(*args)
 
     @staticmethod
-    def _finish(match_id: int, score: list[int], ticks: int, spans: list) -> None:
+    def _finish(match_id: int, score: list[int], ticks: int, spans: list, replay: list, final: int) -> None:
         with db.connect() as conn:
             conn.execute(
                 """UPDATE matches SET status = 'finished', score_blue = ?, score_red = ?, ticks = ?, ended_at = ?
@@ -41,6 +43,10 @@ class Store:
             conn.executemany(
                 "INSERT INTO seat_spans (match_id, seat, visitor_id, from_tick, to_tick) VALUES (?, ?, ?, ?, ?)",
                 [(match_id, seat, visitor, start, end) for seat, visitor, start, end in spans if start <= end],
+            )
+            conn.execute(
+                "INSERT INTO replays (match_id, actions, hash) VALUES (?, ?, ?)",
+                (match_id, json.dumps(replay, separators=(",", ":")), final),
             )
 
     @staticmethod

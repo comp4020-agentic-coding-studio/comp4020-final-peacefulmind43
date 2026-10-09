@@ -1,5 +1,5 @@
 import { afterEach, expect, it } from "vitest";
-import { choose, createArena, newVisitor, openStream, operatorKey, type Stream, url } from "./helpers";
+import { choose, createArena, fetchSaved, newVisitor, openStream, operatorKey, type Stream, url } from "./helpers";
 
 // ADR 0011 (seats, joining, leaving) and ADR 0012 (turns that wait for people,
 // up to a deadline). Tests that need a known map, a short match or a short
@@ -201,7 +201,12 @@ it.runIf(operatorKey)("saves a finished match, then starts the next one", async 
   const next = await s.waitFor((e) => e.event === "match", 4000);
   expect(next.data.match.id).not.toBe(first);
 
-  const saved = await (await fetch(url(`/api/matches/${first}`))).json();
+  // saved in a thread after the match ends, so wait for it to be finished
+  let saved: any = {};
+  for (let i = 0; i < 30 && saved.status !== "finished"; i++) {
+    saved = await (await fetchSaved(`/api/matches/${first}`)).json();
+    if (saved.status !== "finished") await new Promise((r) => setTimeout(r, 100));
+  }
   expect(saved).toMatchObject({ id: first, status: "finished", ticks: 12, team_size: 2, seed: 108 });
   expect(saved.score).toEqual(over.data.score);
 }, 15000);

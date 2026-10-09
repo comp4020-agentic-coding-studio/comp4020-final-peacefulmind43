@@ -6,6 +6,7 @@ import html
 import json
 import os
 import secrets
+import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -30,6 +31,30 @@ from .game import policy  # noqa: E402
 hall = Hall(Store(), bot=policy.deployed())
 hall.watch_bot = policy.on_show()
 
+# Choices arrive several times a second during a crit: each is printed at once,
+# and written to the database in batches, in a thread (ADR 0014).
+choice_buffer: list[tuple] = []
+
+
+def flush_choices() -> None:
+    if not choice_buffer:
+        return
+    batch, choice_buffer[:] = list(choice_buffer), []
+    with db.connect() as conn:
+        conn.executemany(
+            "INSERT INTO game_events (at, match_id, arena, visitor_id, seat, turn, dir) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            batch,
+        )
+
+
+async def flush_choices_forever() -> None:
+    while True:
+        await asyncio.sleep(2)
+        try:
+            await asyncio.to_thread(flush_choices)
+        except Exception as err:  # never lose the server over a log write
+            print(json.dumps({"event": "log_error", "error": repr(err)}), flush=True)
+
 
 def log_soon(kind: str, visitor_id: str | None, detail: dict) -> None:
     """The arena reports things worth logging during a tick; they are written
@@ -51,8 +76,11 @@ async def lifespan(_: FastAPI):
     hall.on_log = log_soon
     hall.shared()  # idle until someone arrives
     ticker = asyncio.create_task(hall.run())
+    flusher = asyncio.create_task(flush_choices_forever())
     yield
     ticker.cancel()
+    flusher.cancel()
+    flush_choices()
 
 
 app = FastAPI(lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
@@ -132,8 +160,15 @@ async def arena_input(request: Request):
     direction, seq, turn = body.get("dir"), body.get("seq"), body.get("turn")
     if direction not in range(5) or not isinstance(seq, int) or not (turn is None or isinstance(turn, int)):
         raise HTTPException(400, "Send dir (0-4), seq (an increasing number) and turn (the turn you're choosing for).")
-    if not me or not hall.choose(me, direction, seq, turn):
+    info = hall.choose(me, direction, seq, turn) if me else None
+    if info is None:
         raise HTTPException(409, "You don't have a seat. Open the game first.")
+    if info["accepted"]:
+        at = int(time.time())
+        print(json.dumps({"event": "choice", "visitor": activity.visitor_label(me), "at": at, "arena": info["arena"],
+                          "match": info["match"], "turn": info["turn"], "seat": info["seat"], "dir": direction}), flush=True)
+        if info["match"] is not None:
+            choice_buffer.append((at, info["match"], info["arena"], me, info["seat"], info["turn"], direction))
 
 
 def operator(request: Request) -> None:
@@ -182,6 +217,35 @@ async def api_recent_matches():
          "team_size": r["team_size"], "people": r["people"], "ended_at": r["ended_at"]}
         for r in rows
     ]
+
+
+@app.get("/api/matches/{match_id}/replay")
+async def api_replay(match_id: int):
+    """Everything needed to play a finished match again (ADR 0014)."""
+    with db.connect() as conn:
+        row = conn.execute(
+            """SELECT m.seed, m.team_size, m.rules_version, m.max_ticks, m.score_blue, m.score_red, r.actions, r.hash
+               FROM matches m JOIN replays r ON r.match_id = m.id WHERE m.id = ?""",
+            (match_id,),
+        ).fetchone()
+    if row is None:
+        raise HTTPException(404, "No replay for that match.")
+    return {
+        "seed": row["seed"], "team_size": row["team_size"], "rules_version": row["rules_version"],
+        "max_ticks": row["max_ticks"], "score": [row["score_blue"], row["score_red"]],
+        "actions": json.loads(row["actions"]), "hash": row["hash"],
+    }
+
+
+@app.get("/api/matches/{match_id}/choices")
+async def api_choices(match_id: int):
+    """Every person's choice in a match: who (public label), seat, turn, move, when."""
+    with db.connect() as conn:
+        rows = conn.execute(
+            "SELECT at, visitor_id, seat, turn, dir FROM game_events WHERE match_id = ? ORDER BY id", (match_id,)
+        ).fetchall()
+    return [{"visitor": activity.visitor_label(r["visitor_id"]), "seat": r["seat"], "turn": r["turn"],
+             "dir": r["dir"], "at": r["at"]} for r in rows]
 
 
 @app.get("/api/matches/{match_id}")

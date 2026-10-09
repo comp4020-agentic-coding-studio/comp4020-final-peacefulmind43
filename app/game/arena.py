@@ -97,6 +97,7 @@ class Arena:
     team_bots: tuple = (None, None)  # set by the hall: each team's trained bot, or None for scripted
     empty_since: float = 0.0
     spans: list[tuple[int, str, int, int]] = field(default_factory=list)  # seat, visitor, from, to
+    replay: list[list[int]] = field(default_factory=list)  # every turn's actions, for ADR 0014
 
     # --- what pages are told -------------------------------------------------
 
@@ -225,6 +226,7 @@ class Hall:
         arena.seats = [Seat(team=0 if i < arena.team_size else 1) for i in range(2 * arena.team_size)]
         arena.bench = []
         arena.spans = []
+        arena.replay = []
         arena.break_until = 0.0
         arena.turn_opened = time.monotonic()
         arena.match_id = None if arena.kind == "watch" else self.store.start(arena)
@@ -239,7 +241,7 @@ class Hall:
             if seat.owner:
                 arena.spans.append((i, seat.owner, seat.since_tick, s.tick))
         if arena.match_id is not None:
-            self.store.finish(arena.match_id, s, list(arena.spans))
+            self.store.finish(arena.match_id, s, list(arena.spans), list(arena.replay))
         arena.tell_all("over", {"match_id": arena.match_id, "score": list(s.score)})
         if self.on_log:
             self.on_log("match_end", None, {"arena": arena.id, "score": f"{s.score[0]}-{s.score[1]}"})
@@ -350,17 +352,18 @@ class Hall:
         elif page.visitor_id in arena.bench and not any(p.visitor_id == page.visitor_id for p in arena.pages):
             arena.bench.remove(page.visitor_id)
 
-    def choose(self, visitor_id: str, direction: int, seq: int, turn: int | None) -> bool:
-        """Record a choice for this turn (ADR 0012). Returns False if the visitor
-        has no seat. A choice for a turn that has already resolved, or with an
-        older sequence number than one already seen, is ignored."""
+    def choose(self, visitor_id: str, direction: int, seq: int, turn: int | None) -> dict | None:
+        """Record a choice for this turn (ADR 0012). Returns None if the visitor
+        has no seat; otherwise what happened, for the log (ADR 0014). A choice
+        for a turn that has already resolved, or with an older sequence number
+        than one already seen, is ignored."""
         arena = self.find(visitor_id)
         i = arena.seat_of(visitor_id) if arena and arena.state else None
         if i is None:
-            return False
+            return None
         seat = arena.seats[i]
         if seq <= seat.seq or (turn is not None and turn != arena.state.tick) or arena.break_until:
-            return True
+            return {"accepted": False}
         seat.seq = seq
         seat.last_input = time.monotonic()
         if seat.covering and seat.pages > 0:  # back from being idle
@@ -371,7 +374,7 @@ class Hall:
         seat.choice = direction
         if first:  # everyone sees who is ready, not what they chose
             arena.tell_all("chosen", {"seat": i, "turn": arena.state.tick})
-        return True
+        return {"accepted": True, "arena": arena.id, "match": arena.match_id, "seat": i, "turn": arena.state.tick}
 
     # --- the ticker ----------------------------------------------------------
 
@@ -464,12 +467,16 @@ class Hall:
                 actions.append(bots.scripted_action(s, i))
             seat.choice = None
         events = engine.step(s, actions)
+        arena.replay.append(actions)
         arena.turn_opened = now
 
         for name, i in events:
             if name in ("tag", "pickup", "capture"):
                 seat = arena.seats[i]
                 arena.tell_all("moment", {"kind": name, "seat": i, "label": label(seat.owner) if seat.human else "Bot"})
+                if self.on_log and arena.match_id is not None:  # the story of a match, for /log
+                    who = seat.owner if seat.human else None
+                    self.on_log(name, who, {"arena": arena.id, "seat": i, "bot": None if seat.human else arena.bot_name(seat.team)})
         view = arena.tick_view()
         for page in arena.pages:
             page.offer_tick(view)

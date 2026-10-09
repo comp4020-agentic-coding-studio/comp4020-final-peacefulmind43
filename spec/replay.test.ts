@@ -1,6 +1,6 @@
 import { afterEach, expect, it } from "vitest";
 import { done, newGame, stateHash, step } from "./engine";
-import { choose, createArena, newVisitor, openStream, operatorKey, type Stream, url } from "./helpers";
+import { choose, createArena, fetchSaved, newVisitor, openStream, operatorKey, type Stream, url } from "./helpers";
 
 // ADR 0014: every choice is logged, and every finished match can be replayed.
 // The replay is checked by the independent TypeScript engine, not by the app.
@@ -28,7 +28,7 @@ async function playShortMatch() {
 
 it.runIf(operatorKey)("replays a finished match to the same score and state with the independent engine", async () => {
   const { matchId, over } = await playShortMatch();
-  const res = await fetch(url(`/api/matches/${matchId}/replay`));
+  const res = await fetchSaved(`/api/matches/${matchId}/replay`);
   expect(res.status).toBe(200);
   const replay = await res.json();
   expect(replay).toMatchObject({ seed: 4242, team_size: 2, max_ticks: 30 });

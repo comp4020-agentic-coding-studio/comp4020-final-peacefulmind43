@@ -281,3 +281,18 @@ saved match had a person in it still holds. Each team can now have its own
 bot, and the bot on show (`watch.txt`) is separate from the one that fills
 people's seats (`current.txt`, none yet), so a bot can be shown honestly
 before it is trusted with a seat.
+
+## 2026-10-10: every choice logged, every match replayable (ADR 0014)
+
+Each choice is one JSON line on stdout as its request arrives (who by public
+label, what, when, which match and turn) and is written to its own table in
+batches from a thread, never inside a turn. Tags, pickups and captures join
+the activity log, so `/log` tells a match's story. Each finished match saves a
+replay: seed, team size, rules version and every turn's actions. The spec
+replays a match through the independent TypeScript engine and gets the
+server's score and state hash.
+
+The spec also showed a race I had built in on purpose: matches are saved in a
+thread so a slow disk never delays a turn, so a replay fetched the instant a
+match ends may not exist yet. The tests now wait for it rather than the server
+saving synchronously; an older test had the same race and had only been lucky.

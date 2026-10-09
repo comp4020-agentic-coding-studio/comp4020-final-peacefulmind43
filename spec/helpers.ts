@@ -157,3 +157,14 @@ export async function openStream(cookie: string | undefined, path: string): Prom
     },
   };
 }
+
+// A finished match is saved in a thread, off the turn (ADR 0011), so it can
+// take a moment to appear: retry until it does.
+export async function fetchSaved(path: string, ms = 3000): Promise<Response> {
+  const deadline = Date.now() + ms;
+  for (;;) {
+    const res = await fetch(url(path));
+    if (res.status !== 404 || Date.now() > deadline) return res;
+    await new Promise((r) => setTimeout(r, 100));
+  }
+}
