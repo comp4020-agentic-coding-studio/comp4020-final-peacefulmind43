@@ -254,3 +254,19 @@ flag, so standing still they wall it in, and the shaping (shortest paths that
 ignore players) kept pointing through them. Still opponents were a fortress,
 harder than moving ones. The diagnostic was wrong, not the pipeline, and I
 removed it rather than leave a misleading option in the trainer.
+
+## 2026-10-10: the first bot that learned, and what it can't do yet
+
+With the action fix and the curriculum, the 10M-sample run learned to attack
+and bring the flag home: against wandering opponents it went from 3% wins to
+70%, the curriculum stepped up twice (to level 0.2), and it kept its play after
+the shaping faded to zero, so the attack wasn't propped up by shaping.
+
+Evaluated the way the server would run it, on 400 unseen maps against the
+full scripted bot, it lost every game 0–3 (scripted against itself on the same
+maps: 29% / 43% / 28%, so the test is fair). It never defends, because its
+opponents so far almost never attacked, and its attack can't get past a
+defender that chases. It learned exactly the level it trained at. Training
+continues from these weights at level 0.2 (30M samples, no shaping). A bot
+that only charges would be the opposite of the teammate the README promises,
+so it isn't deployed until it plays close to the scripted bot.
