@@ -6,7 +6,7 @@ export const SIZES: Record<number, [number, number]> = { 2: [16, 10], 3: [20, 12
 export const WALL_FRACTION = 0.18;
 export const RESPAWN_TICKS = 8;
 export const CARRIER_SKIP = 4; // rules v2 (was 3)
-export const MAX_TICKS = 720;
+export const MAX_TICKS = 500; // rules v3 (was 720)
 export const WIN_SCORE = 3;
 
 const MOVES: [number, number][] = [

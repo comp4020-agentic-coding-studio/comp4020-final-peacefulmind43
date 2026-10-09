@@ -1,6 +1,6 @@
 # 0010. The rules of the game
 
-Status: accepted (2026-10-08). Rules version 2 since 2026-10-09 (see the end).
+Status: accepted (2026-10-08). Rules version 3 since 2026-10-09 (see the end).
 
 ## Context
 
@@ -51,7 +51,7 @@ team, and spawning and respawning skip it.
 **Scoring doesn't need your own flag at home.** Simpler to learn, and games
 don't stall.
 
-**A match ends** when a team reaches 3, or after 720 ticks (3 minutes).
+**A match ends** when a team reaches 3, or after 500 turns (720 before version 3).
 
 **Fairness.** No fog of war: the whole map is on screen, so a bot sees exactly
 what a person sees. Bots choose their action from the state broadcast at the
@@ -100,3 +100,11 @@ fault: the bots' random moves were seeded the same in every game, so 80 games
 were not 80 independent samples. A direct check showed the engine itself is
 exactly mirror-symmetric between the teams (60 games of random moves, every
 tick mirrored).
+
+## Rules version 3 (2026-10-09)
+
+Matches are capped at 500 turns instead of 720. ADR 0012 changed the game from
+a fixed 4 moves a second to turns that wait for people, and with people taking
+time to think, 720 turns ran six to eight minutes. Over 120 scripted-bot games
+each, caps of 300, 400, 500 and 720 turns decided 44%, 53%, 64% and 71% of
+matches; 500 keeps most matches decided at a length people will play.

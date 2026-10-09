@@ -10,13 +10,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-RULES_VERSION = 2  # 2: a team can't enter its own flag's cell; carriers skip 1 tick in 4, not 3
+RULES_VERSION = 3  # 2: no standing on your own flag; carriers skip 1 tick in 4. 3: 500 turns, not 720
 
 SIZES = {2: (16, 10), 3: (20, 12)}  # team size -> (width, height)
 WALL_FRACTION = 0.18
 RESPAWN_TICKS = 8
 CARRIER_SKIP = 4  # a carrier doesn't move on every CARRIER_SKIP-th tick (rules v2; was 3)
-MAX_TICKS = 720
+MAX_TICKS = 500  # rules v3 (was 720), see ADR 0012
 WIN_SCORE = 3
 
 STAY, NORTH, SOUTH, EAST, WEST = range(5)

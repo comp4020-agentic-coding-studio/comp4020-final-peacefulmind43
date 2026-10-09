@@ -1,5 +1,6 @@
-// The game page (doc/adr/0011). The server runs the game; this draws what it
-// sends and sends what you press. Nothing here decides anything about the game.
+// The game page (doc/adr/0011, 0012). The server runs the game; this draws
+// what it sends and sends what you choose. Nothing here decides anything about
+// the game. A turn resolves once everyone has chosen, or at the deadline.
 
 (() => {
   const $ = (name) => document.querySelector(`[data-field="${name}"]`);
@@ -12,7 +13,10 @@
   let seats = [];
   let you = null;
   let lastTick = 0; // when the last state arrived
-  let tickHz = 4;
+  let turn = 0; // the turn now open
+  let deadline = 2; // seconds a turn waits for people
+  let chosen = new Set(); // seats that have chosen this turn
+  let held = null; // a direction held down (key or pad): chosen again each turn
   let seq = Date.now(); // inputs are numbered; a newer page never reuses an older number
   const tokens = []; // one SVG group per seat
   const flagMarks = [];
@@ -58,10 +62,11 @@
 
   function drawTick(t) {
     lastTick = performance.now();
+    turn = t.tick;
+    chosen = new Set(t.chosen || []);
     $("score-blue").textContent = t.score[0];
     $("score-red").textContent = t.score[1];
-    const left = Math.max(0, Math.ceil((match.max_ticks - t.tick) / tickHz));
-    $("clock").textContent = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}`;
+    $("clock").textContent = `${Math.max(0, match.max_ticks - t.tick)} turns left`;
     const carried = [null, null];
     t.players.forEach((p, i) => {
       const g = tokens[i];
@@ -80,10 +85,12 @@
     if (you !== null) {
       const me = t.players[you];
       $("you").textContent = me.respawn
-        ? `You were caught. Back in ${Math.ceil(me.respawn / tickHz)} s.`
+        ? `You were caught. Back in ${me.respawn} turns.`
         : `You are player ${you + 1}, on ${seats[you].team}.${me.carrying ? " You have their flag: get home!" : ""}`;
     }
     if (t.break) notice(`Next match in ${Math.ceil(t.break)} s.`);
+    drawSeats();
+    if (held !== null && !t.break) send(held); // a held direction walks on, one step a turn
   }
 
   function drawSeats() {
@@ -93,7 +100,8 @@
         const li = document.createElement("li");
         li.className = `${s.team}${i === you ? " me" : ""}`;
         const who = s.kind === "human" ? s.label : s.covering ? `Bot, covering for ${s.covering}` : "Bot";
-        li.textContent = `${i + 1}. ${who}${i === you ? " (you)" : ""}`;
+        const ready = s.kind === "human" ? (chosen.has(i) ? " ✓ chosen" : " … choosing") : "";
+        li.textContent = `${i + 1}. ${who}${i === you ? " (you)" : ""}${ready}`;
         return li;
       }),
     );
@@ -115,7 +123,7 @@
 
   function begin(snap) {
     match = snap.match;
-    tickHz = match.tick_hz;
+    deadline = match.deadline_seconds;
     seats = snap.seats;
     you = snap.you;
     drawMap();
@@ -139,6 +147,13 @@
     moment("A new match started.");
   });
   stream.addEventListener("tick", (e) => drawTick(JSON.parse(e.data)));
+  stream.addEventListener("chosen", (e) => {
+    const c = JSON.parse(e.data);
+    if (c.turn === turn) {
+      chosen.add(c.seat);
+      drawSeats();
+    }
+  });
   stream.addEventListener("seats", (e) => {
     seats = JSON.parse(e.data).seats;
     drawSeats();
@@ -167,19 +182,36 @@
   setInterval(() => {
     if (!lastTick) return;
     const quiet = (performance.now() - lastTick) / 1000;
-    $("status").textContent = quiet > 1.5 ? `Slow connection: last update ${quiet.toFixed(0)} s ago.` : "Connected.";
-  }, 500);
+    if (quiet > deadline + 1.5) {
+      $("status").textContent = `Slow connection: last update ${quiet.toFixed(0)} s ago.`;
+    } else {
+      const waiting = seats.filter((s, i) => s.kind === "human" && !chosen.has(i)).length;
+      const left = Math.max(0, deadline - quiet).toFixed(1);
+      $("status").textContent = waiting
+        ? `Turn ${turn + 1}: waiting for ${waiting} ${waiting === 1 ? "person" : "people"}, at most ${left} s more.`
+        : `Turn ${turn + 1}.`;
+    }
+  }, 200);
 
   // --- input ------------------------------------------------------------------
 
-  function send(dir, held) {
+  let sentFor = -1; // the turn the held direction was last sent for
+
+  function send(dir) {
+    if (you === null) return;
+    if (held !== null && dir === held && sentFor === turn) return; // once per turn while held
+    sentFor = turn;
     seq += 1;
     fetch("/arena/input", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ dir, held, seq }),
+      body: JSON.stringify({ dir, seq, turn }),
       keepalive: true,
     }).catch(() => {});
+    if (you !== null) {
+      chosen.add(you);
+      drawSeats();
+    }
   }
 
   const KEYS = {
@@ -193,25 +225,33 @@
   focus.addEventListener("keydown", (e) => {
     if (!(e.key in KEYS)) return;
     e.preventDefault(); // arrows and space would scroll the page
-    if (!e.repeat) send(KEYS[e.key], true);
+    if (e.repeat) return; // holding is handled turn by turn, not by key repeat
+    held = KEYS[e.key] === STAY ? null : KEYS[e.key];
+    sentFor = -1;
+    send(KEYS[e.key]);
   });
   focus.addEventListener("keyup", (e) => {
-    if (e.key in KEYS && KEYS[e.key] !== STAY) send(STAY, true);
+    if (e.key in KEYS && KEYS[e.key] === held) held = null;
   });
-  focus.addEventListener("blur", () => send(STAY, true)); // never keep walking after leaving the board
+  focus.addEventListener("blur", () => (held = null)); // never keep walking after leaving the board
 
   for (const button of document.querySelectorAll(".pad button")) {
     const dir = Number(button.dataset.dir);
-    // touch and mouse: hold to keep moving
+    // touch and mouse: hold to keep walking, one step a turn
     button.addEventListener("pointerdown", (e) => {
       e.preventDefault();
       button.setPointerCapture(e.pointerId);
-      send(dir, true);
+      held = dir === STAY ? null : dir;
+      sentFor = -1;
+      send(dir);
     });
-    for (const end of ["pointerup", "pointercancel"]) button.addEventListener(end, () => send(STAY, true));
-    // keyboard (Enter or Space on the button): one step per press
+    for (const end of ["pointerup", "pointercancel"]) button.addEventListener(end, () => (held = null));
+    // keyboard (Enter or Space on the button): one choice per press
     button.addEventListener("click", (e) => {
-      if (e.detail === 0) send(dir, false);
+      if (e.detail === 0) {
+        held = null;
+        send(dir);
+      }
     });
   }
 })();

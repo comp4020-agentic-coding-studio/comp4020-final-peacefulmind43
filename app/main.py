@@ -126,10 +126,10 @@ async def arena_events(request: Request, arena: str | None = None):
 async def arena_input(request: Request):
     me = request.cookies.get(COOKIE)
     body = await request.json()
-    direction, held, seq = body.get("dir"), body.get("held"), body.get("seq")
-    if direction not in range(5) or not isinstance(held, bool) or not isinstance(seq, int):
-        raise HTTPException(400, "Send dir (0-4), held (true/false) and seq (an increasing number).")
-    if not me or not hall.input(me, direction, held, seq):
+    direction, seq, turn = body.get("dir"), body.get("seq"), body.get("turn")
+    if direction not in range(5) or not isinstance(seq, int) or not (turn is None or isinstance(turn, int)):
+        raise HTTPException(400, "Send dir (0-4), seq (an increasing number) and turn (the turn you're choosing for).")
+    if not me or not hall.choose(me, direction, seq, turn):
         raise HTTPException(409, "You don't have a seat. Open the game first.")
 
 
@@ -148,12 +148,18 @@ async def create_arena(request: Request):
     body = await request.json()
     team_size, seed = body.get("team_size"), body.get("seed")
     max_ticks, break_seconds = body.get("max_ticks", engine.MAX_TICKS), body.get("break_seconds", 10)
+    deadline = body.get("deadline_seconds", 2.0)
     if team_size not in engine.SIZES or not isinstance(seed, int) or not 0 <= seed < 2**32:
         raise HTTPException(400, "Send team_size (2 or 3) and seed (0 to 2^32 - 1).")
     if not isinstance(max_ticks, int) or not 1 <= max_ticks <= engine.MAX_TICKS or not 0 <= break_seconds <= 60:
-        raise HTTPException(400, "max_ticks must be 1-720 and break_seconds 0-60.")
+        raise HTTPException(400, f"max_ticks must be 1-{engine.MAX_TICKS} and break_seconds 0-60.")
+    if not isinstance(deadline, (int, float)) or not 0.15 <= deadline <= 10:
+        raise HTTPException(400, "deadline_seconds must be 0.15-10.")
     try:
-        arena = hall.open_arena(f"p-{secrets.token_urlsafe(6)}", "private", team_size, seed, max_ticks=max_ticks, break_seconds=break_seconds)
+        arena = hall.open_arena(
+            f"p-{secrets.token_urlsafe(6)}", "private", team_size, seed,
+            max_ticks=max_ticks, break_seconds=break_seconds, deadline=float(deadline),
+        )
     except RuntimeError:
         raise HTTPException(503, "Too many arenas are open. Try again in a minute.")
     return {"id": arena.id}

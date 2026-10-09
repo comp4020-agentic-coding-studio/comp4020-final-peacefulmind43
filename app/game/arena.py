@@ -1,10 +1,12 @@
-"""Arenas: where matches run, people take seats, and bots cover the rest (ADR 0011).
+"""Arenas: where matches run, people take seats, and bots cover the rest
+(ADR 0011, with turns from ADR 0012).
 
-One ticker drives every arena at 4 Hz on a fixed clock. Inside a tick nothing
-touches the database or the log: people's inputs are read from their seats,
-bots choose from the state everyone saw at the previous tick, the engine
-steps, and the new state is offered to every open page, which keeps only the
-newest. Saving a finished match happens off the tick, in a thread.
+A turn resolves as soon as every person in the match has chosen, or after a
+2-second deadline. One loop checks every arena 20 times a second. Resolving a
+turn touches neither the database nor the log: people's choices are read from
+their seats, bots choose from the board as the turn opened (the board everyone
+was shown), the engine steps, and the new state is offered to every open page,
+which keeps only the newest. Saving a finished match happens in a thread.
 """
 
 from __future__ import annotations
@@ -18,8 +20,10 @@ from dataclasses import dataclass, field
 from ..activity import visitor_label as label
 from . import bots, engine
 
-TICK_HZ = 4
-PERIOD = 1 / TICK_HZ
+CHECK_HZ = 20  # how often arenas are checked for a turn that is ready
+CHECK_PERIOD = 1 / CHECK_HZ
+TURN_DEADLINE = 2.0  # seconds: a turn resolves without anyone who hasn't chosen
+MIN_TURN = 0.15  # seconds between turns, so moves stay readable
 GRACE_SECONDS = 5  # a closed page keeps its seat this long before a bot covers it
 IDLE_SECONDS = 60  # an open page with no input for this long is covered too
 BREAK_SECONDS = 10  # between matches
@@ -32,8 +36,7 @@ PRIVATE_IDLE_SECONDS = 20  # a private arena with nobody in it closes
 class Seat:
     team: int
     owner: str | None = None  # the visitor who holds this seat, if any
-    held: int = engine.STAY  # direction being held down
-    tap: int | None = None  # a one-shot direction, used once by the next tick
+    choice: int | None = None  # this turn's action, until the turn resolves
     seq: int = 0  # the newest input number seen
     pages: int = 0  # open pages of the owner
     left_at: float = 0.0  # when the owner's last page closed
@@ -82,6 +85,7 @@ class Arena:
     seed: int
     max_ticks: int = engine.MAX_TICKS
     break_seconds: float = BREAK_SECONDS
+    deadline: float = TURN_DEADLINE  # shorter only in private test arenas
     seats: list[Seat] = field(default_factory=list)
     bench: list[str] = field(default_factory=list)  # people waiting for the next match
     pages: list[Page] = field(default_factory=list)
@@ -89,6 +93,7 @@ class Arena:
     match_id: int | None = None
     matches_played: int = 0
     break_until: float = 0.0  # > 0 while between matches
+    turn_opened: float = 0.0
     empty_since: float = 0.0
     spans: list[tuple[int, str, int, int]] = field(default_factory=list)  # seat, visitor, from, to
 
@@ -115,7 +120,7 @@ class Arena:
             "seed": self.state.seed,
             "team_size": self.team_size,
             "rules_version": engine.RULES_VERSION,
-            "tick_hz": TICK_HZ,
+            "deadline_seconds": self.deadline,
             "max_ticks": self.state.max_ticks,
             "map": {
                 "width": m.width,
@@ -133,6 +138,7 @@ class Arena:
             "tick": s.tick,
             "score": list(s.score),
             "players": [{"x": p.x, "y": p.y, "respawn": p.respawn, "carrying": p.carrying} for p in s.players],
+            "chosen": [i for i, seat in enumerate(self.seats) if seat.choice is not None],
             "break": max(0.0, round(self.break_until - time.monotonic(), 1)) if self.break_until else 0,
         }
 
@@ -198,6 +204,7 @@ class Hall:
         arena.bench = []
         arena.spans = []
         arena.break_until = 0.0
+        arena.turn_opened = time.monotonic()
         arena.match_id = self.store.start(arena)
         for visitor_id in people:
             self.seat_person(arena, visitor_id, announce=False)
@@ -312,27 +319,27 @@ class Hall:
         elif page.visitor_id in arena.bench and not any(p.visitor_id == page.visitor_id for p in arena.pages):
             arena.bench.remove(page.visitor_id)
 
-    def input(self, visitor_id: str, direction: int, held: bool, seq: int) -> bool:
-        """Record an input. Returns False if the visitor has no seat."""
+    def choose(self, visitor_id: str, direction: int, seq: int, turn: int | None) -> bool:
+        """Record a choice for this turn (ADR 0012). Returns False if the visitor
+        has no seat. A choice for a turn that has already resolved, or with an
+        older sequence number than one already seen, is ignored."""
         arena = self.find(visitor_id)
-        i = arena.seat_of(visitor_id) if arena else None
+        i = arena.seat_of(visitor_id) if arena and arena.state else None
         if i is None:
             return False
         seat = arena.seats[i]
-        if seq <= seat.seq:
-            return True  # an older input arriving late: ignored
+        if seq <= seat.seq or (turn is not None and turn != arena.state.tick) or arena.break_until:
+            return True
         seat.seq = seq
         seat.last_input = time.monotonic()
-        if held:
-            seat.held = direction
-            if direction != engine.STAY:
-                seat.tap = direction  # a press shorter than a tick still moves once
-        else:
-            seat.tap = direction
         if seat.covering and seat.pages > 0:  # back from being idle
             seat.covering = False
             arena.seats_changed()
             arena.tell_all("moment", {"kind": "reclaim", "seat": i, "label": label(visitor_id)})
+        first = seat.choice is None
+        seat.choice = direction
+        if first:  # everyone sees who is ready, not what they chose
+            arena.tell_all("chosen", {"seat": i, "turn": arena.state.tick})
         return True
 
     # --- the ticker ----------------------------------------------------------
@@ -343,11 +350,11 @@ class Hall:
         n = 0
         while True:
             n += 1
-            due = start + n * PERIOD  # a fixed clock: ticks never drift
+            due = start + n * CHECK_PERIOD  # a fixed clock: checks never drift
             await asyncio.sleep(max(0.0, due - loop.time()))
             late = loop.time() - due
-            if late > PERIOD:  # fell more than a tick behind: skip, don't burst
-                n += int(late / PERIOD)
+            if late > CHECK_PERIOD:  # fell behind: skip, don't burst
+                n += int(late / CHECK_PERIOD)
             began = time.perf_counter()
             for arena in list(self.arenas.values()):
                 try:
@@ -355,7 +362,7 @@ class Hall:
                 except Exception as err:  # one broken arena must not stop the others
                     print(json.dumps({"event": "tick_error", "arena": arena.id, "error": repr(err)}), flush=True)
             spent = time.perf_counter() - began
-            if spent > PERIOD / 2:
+            if spent > CHECK_PERIOD / 2:
                 print(json.dumps({"event": "slow_tick", "ms": round(spent * 1000), "late_ms": round(late * 1000)}), flush=True)
 
     def tick(self, arena: Arena, now: float) -> None:
@@ -388,7 +395,7 @@ class Hall:
             idle = seat.pages > 0 and now - seat.last_input >= IDLE_SECONDS
             if gone or idle:
                 seat.covering = True
-                seat.held, seat.tap = engine.STAY, None
+                seat.choice = None
                 changed = True
                 arena.tell_all("moment", {"kind": "takeover", "seat": i, "label": label(seat.owner)})
                 if self.on_log:
@@ -396,17 +403,29 @@ class Hall:
         if changed:
             arena.seats_changed()
 
-        # this tick's actions: people from their seats, bots from the state as it
-        # stands, which is the state everyone was shown after the previous tick
+        # ADR 0012: resolve when every person present has chosen, or at the deadline
+        waited = now - arena.turn_opened
+        # only people with a page open can choose; one who closed the page is
+        # not waited for, even before a bot covers their seat. With nobody able
+        # to choose, turns keep to the deadline instead of racing through the
+        # match: someone who reloads the page comes back to the game they left.
+        present = [seat for seat in arena.seats if seat.human and seat.pages > 0]
+        everyone = bool(present) and all(seat.choice is not None for seat in present)
+        if not ((everyone and waited >= MIN_TURN) or waited >= arena.deadline):
+            return
+
+        # people play their choice (or stand still); bots choose from the board as
+        # it stands, which is the board everyone was shown when the turn opened
         s = arena.state
         actions = []
         for i, seat in enumerate(arena.seats):
             if seat.human:
-                actions.append(seat.tap if seat.tap is not None else seat.held)
-                seat.tap = None
+                actions.append(seat.choice if seat.choice is not None else engine.STAY)
             else:
                 actions.append(bots.scripted_action(s, i))
+            seat.choice = None
         events = engine.step(s, actions)
+        arena.turn_opened = now
 
         for name, i in events:
             if name in ("tag", "pickup", "capture"):

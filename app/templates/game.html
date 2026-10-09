@@ -3,25 +3,27 @@
 <h1>Capture the flag</h1>
 <p class="lead">Two teams on a small grid. Step on the other team's flag, then carry it back to your base to score.
   On your own half you catch anyone from the other team you touch; on theirs, they catch you.
-  Empty seats are played by bots, so you can play alone with a bot teammate, or with friends:
-  anyone who opens this page joins the same game.</p>
+  Everyone chooses a move each turn, and the turn plays out once everyone has chosen (or after 2 seconds),
+  so there's time to think. Empty seats are played by bots: play alone with a bot teammate, or with friends,
+  since anyone who opens this page joins the same game.</p>
 
 <section class="game" aria-labelledby="game-heading">
   <h2 id="game-heading" class="visually-hidden">The game</h2>
   <div class="scorebar" aria-live="off">
     <span class="team blue">Blue <strong data-field="score-blue">0</strong></span>
-    <span class="clock" data-field="clock">3:00</span>
+    <span class="clock" data-field="clock"></span>
     <span class="team red"><strong data-field="score-red">0</strong> Red</span>
   </div>
   <p class="you" data-field="you">Connecting…</p>
 
   <div class="board-wrap">
     <div class="board" tabindex="0" data-field="board-focus"
-         aria-label="Game board. Use the arrow keys or W A S D to move, space to stand still.">
+         aria-label="Game board. Use the arrow keys or W A S D to choose a move, space to stand still. Hold a key to keep walking.">
       <svg data-field="board" role="img" aria-label="The map, the players and the flags" viewBox="0 0 16 10"
            preserveAspectRatio="xMidYMid meet"></svg>
     </div>
-    <p class="board-hint">Click the board, then use the arrow keys or W A S D. Space stands still.</p>
+    <p class="board-hint">Click the board, then choose a move with the arrow keys or W A S D (space stands still).
+      Hold a key to keep walking, one step a turn.</p>
   </div>
 
   <div class="pad" role="group" aria-label="Move">

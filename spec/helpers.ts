@@ -64,7 +64,13 @@ export async function newVisitor(): Promise<string> {
   return cookie;
 }
 
-export async function createArena(options: { team_size: number; seed: number; max_ticks?: number; break_seconds?: number }) {
+export async function createArena(options: {
+  team_size: number;
+  seed: number;
+  max_ticks?: number;
+  break_seconds?: number;
+  deadline_seconds?: number;
+}) {
   const res = await fetch(url("/api/arenas"), {
     method: "POST",
     headers: { "content-type": "application/json", "x-operator-key": operatorKey ?? "" },
@@ -74,11 +80,13 @@ export async function createArena(options: { team_size: number; seed: number; ma
   return (await res.json()) as { id: string };
 }
 
-export async function sendInput(cookie: string, dir: number, held: boolean, seq: number): Promise<Response> {
+// ADR 0012: a choice of action for a turn. `turn` may be left out to mean
+// "whatever turn is open now".
+export async function choose(cookie: string, dir: number, seq: number, turn?: number): Promise<Response> {
   return fetch(url("/arena/input"), {
     method: "POST",
     headers: { "content-type": "application/json", cookie },
-    body: JSON.stringify({ dir, held, seq }),
+    body: JSON.stringify({ dir, seq, ...(turn === undefined ? {} : { turn }) }),
   });
 }
 

@@ -17,9 +17,9 @@ class Store:
         s = arena.state
         with db.connect() as conn:
             cur = conn.execute(
-                """INSERT INTO matches (arena, seed, team_size, rules_version, tick_hz, max_ticks, started_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
-                (arena.id, s.seed, arena.team_size, engine.RULES_VERSION, 4, s.max_ticks, int(time.time())),
+                """INSERT INTO matches (arena, seed, team_size, rules_version, tick_hz, max_ticks, started_at, turn_deadline)
+                   VALUES (?, ?, ?, ?, 0, ?, ?, ?)""",
+                (arena.id, s.seed, arena.team_size, engine.RULES_VERSION, s.max_ticks, int(time.time()), arena.deadline),
             )
             return cur.lastrowid
 
