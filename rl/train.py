@@ -2,6 +2,12 @@
 file. One network plays every seat of the learning team; the scripted bots play
 the other team. Shaping fades from 1 to 0 over the first half of training.
 
+Opponents follow an adaptive curriculum: they start at level 0 (wandering) and
+step up by 0.1 whenever the learner wins 70% of its last 100 games at the
+current level, until they are the full scripted bot. Without it, the first
+runs met full defenders from the start, were caught every time they crossed
+the middle, and learned to stay on their own half: 100% of their turns.
+
     python rl/train.py --name first --steps 10000000
 
 Writes rl/runs/<name>/: metrics.csv (one row per update), checkpoints, and
@@ -44,6 +50,8 @@ def main() -> None:
     ap.add_argument("--shaping-frac", type=float, default=0.5, help="shaping reaches 0 at this fraction of training")
     ap.add_argument("--seed", type=int, default=1)
     ap.add_argument("--threads", type=int, default=4)
+    ap.add_argument("--level-step", type=float, default=0.1, help="curriculum step; 0 disables it")
+    ap.add_argument("--level-win", type=float, default=0.7, help="win rate that raises the level")
     ap.add_argument("--device", default="mps" if torch.backends.mps.is_available() else "cpu",
                     help="where the update runs; rollouts always run on the CPU")
     args = ap.parse_args()
@@ -76,12 +84,14 @@ def main() -> None:
     buf_rewards = np.zeros((T, rows), dtype=np.float32)
     buf_dones = np.zeros((T, rows), dtype=np.float32)
 
+    level = 0.0 if args.level_step > 0 else 1.0
+    at_level: deque = deque(maxlen=100)  # results since the level last changed
     results: deque = deque(maxlen=200)
     captures: deque = deque(maxlen=200)
     updates = args.steps // (T * rows)
     log = open(out / "metrics.csv", "w", newline="")
     writer = csv.writer(log)
-    writer.writerow(["update", "samples", "seconds", "samples_per_s", "shaping", "lr", "games", "win", "draw", "loss_rate",
+    writer.writerow(["update", "samples", "seconds", "samples_per_s", "level", "shaping", "lr", "games", "win", "draw", "loss_rate",
                      "captures", "policy_loss", "value_loss", "entropy", "approx_kl", "clip_frac"])
     start = time.time()
     samples = 0
@@ -105,12 +115,17 @@ def main() -> None:
             buf_actions[t] = action.numpy()
             buf_logp[t] = dist.log_prob(action).numpy()
             buf_values[t] = value.numpy()
-            rewards, dones, finished = batch.step(action.numpy(), owner, args.gamma, shaping)
+            rewards, dones, finished = batch.step(action.numpy(), owner, args.gamma, shaping, level)
             buf_rewards[t] = rewards
             done_prev = dones
             for info in finished:
                 results.append(info["result"])
                 captures.append(info["captures"])
+                at_level.append(info["result"])
+            if level < 1.0 and len(at_level) == at_level.maxlen and sum(r == 1 for r in at_level) / len(at_level) >= args.level_win:
+                level = min(1.0, round(level + args.level_step, 2))
+                at_level.clear()
+                print(f"  curriculum: opponents now at level {level:.1f}", flush=True)
             planes, scalars, owner = batch.observe()
             samples += rows
 
@@ -170,12 +185,12 @@ def main() -> None:
         draw = sum(r == 0 for r in results) / games if games else float("nan")
         lose = sum(r == -1 for r in results) / games if games else float("nan")
         caps = float(np.mean(captures)) if captures else float("nan")
-        writer.writerow([update, samples, round(secs), round(samples / secs), round(shaping, 3), f"{lr:.2e}", games,
+        writer.writerow([update, samples, round(secs), round(samples / secs), level, round(shaping, 3), f"{lr:.2e}", games,
                          round(win, 3), round(draw, 3), round(lose, 3), round(caps, 2),
                          round(pg_l, 4), round(v_l, 4), round(ent_v, 3), round(kl_v, 4), round(clip_v, 3)])
         log.flush()
         if update % 5 == 0 or update == updates:
-            print(f"update {update}/{updates}  samples {samples:,}  {samples / secs:,.0f}/s  shaping {shaping:.2f}  "
+            print(f"update {update}/{updates}  samples {samples:,}  {samples / secs:,.0f}/s  level {level:.1f}  shaping {shaping:.2f}  "
                   f"last {games} games vs scripted: win {win:.2f} draw {draw:.2f} lose {lose:.2f}  captures {caps:.2f}  "
                   f"entropy {ent_v:.2f}", flush=True)
         if update % 25 == 0 or update == updates:

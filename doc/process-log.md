@@ -183,3 +183,30 @@ every turn. That is what lets one network play both sides.
   that almost never got home only ever saw the penalty. The potential is now
   minus the whole path still to walk before scoring, which doesn't change at
   all when the flag is picked up.
+
+## 2026-10-10: the bot learned to never leave home
+
+With the shaping fixed, a 4M-sample run still never scored. Before changing
+anything I watched the exported bot play 40 games on unseen maps: its players
+spent 100% of their turns on their own half and never came within 3 cells of
+the enemy flag, while tagging 3.5 scripted attackers a game. It had found a
+local optimum. Early on, every crossing of the middle line met a full scripted
+defender, was caught and sent home, so it learned not to cross, and then never
+explored far enough to find that a capture is worth +1. This was an
+exploration problem, not a reward bug.
+
+Fix: an adaptive curriculum. Opponents play their scripted move with
+probability `level`, otherwise a random one; level starts at 0 (wandering
+opponents that barely defend) and rises by 0.1 each time the bot wins 70% of
+its last 100 games at that level, up to the full scripted bot. Self-play was
+the alternative, but two learners can settle into both defending, and it gives
+no fixed yardstick; it comes later, once the bot can attack.
+
+Also found: the run took 96 minutes instead of about 15, because the cumulative
+speed collapsed mid-run; the Mac had slowed or slept the background process.
+Training now runs under `caffeinate -i`.
+
+`rl/eval.py` measures a bot the way the server runs it (the exported NumPy
+file) against the full scripted bot on maps it never trained on, alternating
+sides and team sizes, with 95% Wilson intervals and a scripted-vs-scripted
+baseline on the same maps.

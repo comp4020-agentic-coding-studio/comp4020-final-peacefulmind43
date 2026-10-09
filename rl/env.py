@@ -1,7 +1,9 @@
 """Many games at once, as a batch the learner can step (ADR 0013).
 
 The learning team's seats are played by the network; the other team by the
-scripted bots. Half the game slots are 2v2 and half 3v3, fixed, so the batch
+scripted bots, softened by a curriculum: each turn an opponent plays its
+scripted move with probability `level`, otherwise a random one. Level 0 is an
+opponent that wanders; level 1 is the full scripted bot. Half the game slots are 2v2 and half 3v3, fixed, so the batch
 always has the same number of rows; each new game picks blue or red for the
 learner and a map from the training seed range. Every learner seat is a row.
 
@@ -76,14 +78,14 @@ class Game:
     def observe(self) -> list[tuple[np.ndarray, np.ndarray]]:
         return [observe(self.state, i) for i in self.seats]
 
-    def step(self, actions: list[int], gamma: float, shaping_weight: float) -> tuple[list[float], bool, dict]:
+    def step(self, actions: list[int], gamma: float, shaping_weight: float, level: float = 1.0) -> tuple[list[float], bool, dict]:
         s = self.state
         full = [0] * len(s.players)
         for seat, a in zip(self.seats, actions):
             full[seat] = a
         for i, p in enumerate(s.players):
             if p.team != self.team:
-                full[i] = bots.scripted_action(s, i)
+                full[i] = bots.scripted_action(s, i) if self.rng.random() < level else self.rng.randrange(5)
         before = list(s.score)
         engine.step(s, full)
         team_reward = (s.score[self.team] - before[self.team]) - (s.score[1 - self.team] - before[1 - self.team])
@@ -117,14 +119,14 @@ class Batch:
                 owner.append(g)
         return np.stack(planes), np.stack(scalars), owner
 
-    def step(self, actions: np.ndarray, owner: list[int], gamma: float, shaping_weight: float):
+    def step(self, actions: np.ndarray, owner: list[int], gamma: float, shaping_weight: float, level: float = 1.0):
         rewards = np.zeros(len(actions), dtype=np.float32)
         dones = np.zeros(len(actions), dtype=np.float32)
         finished = []
         row = 0
         for g, game in enumerate(self.games):
             n = len(game.seats)
-            r, done, info = game.step([int(a) for a in actions[row : row + n]], gamma, shaping_weight)
+            r, done, info = game.step([int(a) for a in actions[row : row + n]], gamma, shaping_weight, level)
             rewards[row : row + n] = r
             dones[row : row + n] = float(done)
             if done:
