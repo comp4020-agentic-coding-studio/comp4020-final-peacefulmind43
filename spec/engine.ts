@@ -123,9 +123,10 @@ export interface State {
   score: [number, number];
   carrier: [number | null, number | null];
   tick: number;
+  maxTicks?: number; // shorter only in private test arenas
 }
 
-export const done = (s: State) => Math.max(...s.score) >= WIN_SCORE || s.tick >= MAX_TICKS;
+export const done = (s: State) => Math.max(...s.score) >= WIN_SCORE || s.tick >= (s.maxTicks ?? MAX_TICKS);
 
 export function newGame(seed: number, teamSize: number): State {
   const map = makeMap(seed, teamSize);
