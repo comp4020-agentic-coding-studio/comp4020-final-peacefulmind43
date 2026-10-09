@@ -25,7 +25,7 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.game import bots, engine  # noqa: E402
-from app.game.obs import HEIGHT, PLANES, SCALARS, WIDTH, observe  # noqa: E402
+from app.game.obs import HEIGHT, PLANES, SCALARS, WIDTH, observe, to_engine  # noqa: E402
 
 TRAIN_SEEDS = (0, 1_000_000)  # evaluation uses seeds at or above 1_000_000
 
@@ -82,7 +82,7 @@ class Game:
         s = self.state
         full = [0] * len(s.players)
         for seat, a in zip(self.seats, actions):
-            full[seat] = a
+            full[seat] = to_engine(self.team, a)  # the network chose in its flipped view
         for i, p in enumerate(s.players):
             if p.team != self.team:
                 full[i] = bots.scripted_action(s, i) if self.rng.random() < level else self.rng.randrange(5)

@@ -210,3 +210,20 @@ Training now runs under `caffeinate -i`.
 file) against the full scripted bot on maps it never trained on, alternating
 sides and team sizes, with 95% Wilson intervals and a scripted-vs-scripted
 baseline on the same maps.
+
+## 2026-10-10: a flipped view needs a flipped action
+
+The curriculum run was learning too slowly: after 2M samples, against
+opponents that only wandered, it won 3% of games. Watching a checkpoint showed
+a faint preference for moving east (24% against 14% west) and otherwise near
+random play. The cause was mine: the observation flips red's view so every bot
+attacks to the right, but the network's action was applied to the board
+unflipped. For red, "towards the enemy" moved it home. Half of every batch
+taught the opposite of the other half.
+
+The observation's mirror test had passed, because it only checked what the two
+sides see, not what the same output means for each. `to_engine` in
+`app/game/obs.py` now turns red's actions back, used by training and the
+server alike, and a new test plays a game and its mirror with any policy of the
+view and checks they stay mirrored. Removing the fix makes that test fail. I
+stopped the run, since it was learning a contradiction, and restarted it.

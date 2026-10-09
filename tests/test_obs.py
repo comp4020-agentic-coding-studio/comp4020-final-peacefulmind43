@@ -52,3 +52,30 @@ def test_mirror_games_look_the_same_to_mirrored_players():
                     mirrored[mirror(i)] = swap[act]
                 step(a, acts)
                 step(b, mirrored)
+
+
+def test_a_policy_of_the_view_plays_both_sides_the_same_way():
+    # Any policy that only looks at its own view, with the view-to-board rule,
+    # must keep a game and its mirror mirrored. Without turning red's actions
+    # back (as the first training runs did), this fails within a few turns.
+    import hashlib
+
+    from app.game.obs import to_engine
+
+    def view_policy(state, seat):
+        planes, scalars = observe(state, seat)
+        digest = hashlib.sha256(planes.tobytes() + scalars.tobytes() + bytes([state.tick % 256])).digest()
+        return to_engine(state.players[seat].team, digest[0] % 5)
+
+    for seed in range(6):
+        for k in (2, 3):
+            a, b = new_game(seed, k), new_game(seed, k)
+            mirror = lambda i: (i + k) % (2 * k)  # noqa: E731
+            width = a.map.width
+            for _ in range(120):
+                step(a, [view_policy(a, i) for i in range(2 * k)])
+                step(b, [view_policy(b, i) for i in range(2 * k)])
+                for i, p in enumerate(a.players):
+                    q = b.players[mirror(i)]
+                    x = p.x if p.x < 0 else width - 1 - p.x
+                    assert (x, p.y, p.respawn, p.carrying) == (q.x, q.y, q.respawn, q.carrying)

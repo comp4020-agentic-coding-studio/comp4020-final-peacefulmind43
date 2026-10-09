@@ -13,7 +13,7 @@ from pathlib import Path
 import numpy as np
 
 from .engine import Rng, State
-from .obs import observe
+from .obs import observe, to_engine
 
 BOT_DIR = Path(__file__).resolve().parent / "bots"
 
@@ -55,7 +55,8 @@ class Policy:
         p = np.exp(z - z.max())
         p /= p.sum()
         r = Rng((state.tick * 2654435761 + seat * 40503 + state.seed * 2246822519 + 777) & 0xFFFFFFFF).next()
-        return int(min(np.searchsorted(np.cumsum(p), r, side="right"), len(p) - 1))
+        choice = int(min(np.searchsorted(np.cumsum(p), r, side="right"), len(p) - 1))
+        return to_engine(state.players[seat].team, choice)  # chosen in its flipped view
 
 
 def load(name: str) -> Policy | None:

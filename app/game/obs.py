@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from .engine import RESPAWN_TICKS, SIZES, WIN_SCORE, State
+from .engine import EAST, RESPAWN_TICKS, SIZES, WEST, WIN_SCORE, State
 
 HEIGHT = max(h for _, h in SIZES.values())
 WIDTH = max(w for w, _ in SIZES.values())
@@ -86,3 +86,17 @@ def observe(state: State, seat: int) -> tuple[np.ndarray, np.ndarray]:
         dtype=np.float32,
     )
     return planes, scalars
+
+
+def to_engine(team: int, action: int) -> int:
+    """The bot's action, chosen in its own flipped view, as a move on the real
+    board. Red sees the map mirrored, so its east is the board's west.
+
+    The first training runs flipped the view but not the action: for red, the
+    network's "towards the enemy" moved it home. Half of every batch taught
+    the opposite of the other half, and the bot barely learned. A test now
+    plays a game and its mirror with the same view-to-action rule and checks
+    they stay mirrored."""
+    if team == 1 and action in (EAST, WEST):
+        return WEST if action == EAST else EAST
+    return action
