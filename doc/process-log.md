@@ -334,3 +334,23 @@ API, so it can also succeed by accident). The repo has never used Lob. The fix
 excludes that one detector in this repo, with the reason in the workflow;
 every other detector still runs. The course page says to fix a step that
 misfires on a site with nothing wrong in it, and this was the narrowest fix.
+
+## 2026-10-10: the bot passes the scripted bot
+
+The continuation run climbed the curriculum from level 0.3 to 1.0 (the full
+scripted bot) in about 12M samples, stepping up whenever it won 60% of 100
+games. Checkpoints evaluated on unseen maps against the full scripted bot
+showed it learn defence as the opponents got stronger:
+
+| when | win | draw | loss | captures for / against |
+|---|---|---|---|---|
+| first learning run (level 0.2) | 0% | 0% | 100% | 0.01 / 3.00 |
+| at level 0.6 (200 games) | 2.5% | 12% | 85.5% | 0.23 / 2.02 |
+| at level 0.8 (200 games) | 28.5% | 18% | 53.5% | 1.02 / 1.45 |
+| reaching level 1.0 (400 games) | 40.0% [35.3, 44.9] | 25% | 35% | 1.18 / 0.77 |
+| scripted against itself (400 games) | 29% | 43% | 28% | 0.69 / 0.68 |
+
+At level 1.0 it wins more than it loses against the scripted bot, and its
+whole 95% interval for wins sits above the scripted bot's own 29%. Its attack
+passed the scripted bot's first (at level 0.8 it already scored more); its
+defence caught up last. Training continues against the full scripted bot.
