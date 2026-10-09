@@ -17,6 +17,11 @@
   let deadline = 2; // seconds a turn waits for people
   let chosen = new Set(); // seats that have chosen this turn
   let held = null; // a direction held down (key or pad): chosen again each turn
+  let heldSince = 0; // when it was pressed
+  // A press only counts as holding after this long, like a keyboard's own
+  // repeat delay. Without it, an ordinary press was still down when the next
+  // turn arrived (a solo turn resolves in 0.15 s), and walked two steps.
+  const HOLD_DELAY = 350;
   let seq = Date.now(); // inputs are numbered; a newer page never reuses an older number
   const tokens = []; // one SVG group per seat
   const flagMarks = [];
@@ -90,7 +95,15 @@
     }
     if (t.break) notice(`Next match in ${Math.ceil(t.break)} s.`);
     drawSeats();
-    if (held !== null && !t.break) send(held); // a held direction walks on, one step a turn
+    if (held !== null && !t.break) walkOn(held, t.tick); // a held direction walks on, one step a turn
+  }
+
+  function walkOn(dir, forTurn) {
+    const wait = HOLD_DELAY - (performance.now() - heldSince);
+    if (wait <= 0) return send(dir);
+    setTimeout(() => {
+      if (held === dir && turn === forTurn) send(dir); // still held, and still this turn
+    }, wait);
   }
 
   function drawSeats() {
@@ -227,6 +240,7 @@
     e.preventDefault(); // arrows and space would scroll the page
     if (e.repeat) return; // holding is handled turn by turn, not by key repeat
     held = KEYS[e.key] === STAY ? null : KEYS[e.key];
+    heldSince = performance.now();
     sentFor = -1;
     send(KEYS[e.key]);
   });
@@ -242,6 +256,7 @@
       e.preventDefault();
       button.setPointerCapture(e.pointerId);
       held = dir === STAY ? null : dir;
+      heldSince = performance.now();
       sentFor = -1;
       send(dir);
     });
