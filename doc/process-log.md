@@ -296,3 +296,16 @@ The spec also showed a race I had built in on purpose: matches are saved in a
 thread so a slow disk never delays a turn, so a replay fetched the instant a
 match ends may not exist yet. The tests now wait for it rather than the server
 saving synchronously; an older test had the same race and had only been lucky.
+
+## 2026-10-10: judging a plateau too early
+
+The continuation run sat at level 0.2 for 4M samples, winning 60–62% against a
+70% threshold, so I stopped it to lower the threshold. The level-up event
+arrived seconds later: it had just reached 70%. I had called a plateau too
+soon. Checkpoints every 25 updates meant almost nothing was lost, and the
+run continues from there at level 0.3.
+
+The threshold change still stands on its own reasoning: at 62% wins the bot
+was losing only 9% of games; the rest were draws, and draws are common in
+this game (scripted against itself draws 43%). A 70% win bar treats a
+defended draw as failure. It is 60% from here on.
