@@ -103,7 +103,7 @@ def main() -> None:
 
     for update in range(1, updates + 1):
         frac = (update - 1) / updates
-        shaping = max(0.0, 1.0 - frac / args.shaping_frac)
+        shaping = max(0.0, 1.0 - frac / args.shaping_frac) if args.shaping_frac > 0 else 0.0
         lr = args.lr * (1.0 - frac)
         for g in opt.param_groups:
             g["lr"] = lr
