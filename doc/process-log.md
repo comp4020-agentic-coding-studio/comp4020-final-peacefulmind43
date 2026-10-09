@@ -238,3 +238,19 @@ bot seat says which bot it is. Each claim is either checked by a named test or
 left to people to judge, and the sources are the human-AI teamwork work the
 design leans on: Jaderberg et al. 2019, Carroll et al. 2019, Strouse et al.
 2021, and Ng et al. 1999 for the shaping.
+
+## 2026-10-10: a diagnostic that was wrong, and what it showed
+
+The run with the action fix learned to attack (45% of its moves towards the
+enemy, reaching the flag in almost every game) but not to bring the flag home:
+holding it, it still moved towards the enemy more than towards home, and was
+caught on every carry. Mid-run it also slid back towards random play.
+
+To tell a pipeline bug from a hard problem, I trained against opponents that
+never move, expecting an easy win. It scored nothing in 1M samples, which by my
+own test meant a bug. But the main run was starting to win at the same time,
+so I checked the diagnostic instead: opponents spawn on three sides of their
+flag, so standing still they wall it in, and the shaping (shortest paths that
+ignore players) kept pointing through them. Still opponents were a fortress,
+harder than moving ones. The diagnostic was wrong, not the pipeline, and I
+removed it rather than leave a misleading option in the trainer.
