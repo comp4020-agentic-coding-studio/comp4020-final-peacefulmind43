@@ -227,3 +227,14 @@ sides see, not what the same output means for each. `to_engine` in
 server alike, and a new test plays a game and its mirror with any policy of the
 view and checks they stay mirrored. Removing the fix makes that test fail. I
 stopped the run, since it was learning a contradiction, and restarted it.
+
+## 2026-10-10: the README argues for the game
+
+Rewrote README.md for capture the flag (597 words). Its "good" is about the
+people at the table: a game can always start; bots are fair (same board, same
+rules, never seeing choices); bots win by choosing, not by speed (the
+turn-based change); a bot is a teammate, not the star (team reward); and every
+bot seat says which bot it is. Each claim is either checked by a named test or
+left to people to judge, and the sources are the human-AI teamwork work the
+design leans on: Jaderberg et al. 2019, Carroll et al. 2019, Strouse et al.
+2021, and Ng et al. 1999 for the shaping.
