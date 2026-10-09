@@ -161,3 +161,25 @@ The observation lives in one file used by both training and the server. Its
 key test: in a game and its mirror image (flipped left to right, teams
 swapped), each blue player sees exactly what the matching red player sees, at
 every turn. That is what lets one network play both sides.
+
+## 2026-10-09: the training pipeline, and two things it taught me
+
+- **Profile before optimising.** The first environment ran 2,400 samples a
+  second. A profile showed 92% of the time in shortest-path searches (the
+  shaping potential and the scripted opponents), and most searches had the
+  same map, team and target all match long. Caching them made it 13 times
+  faster, and 120 scripted games gave exactly the same results as before, so
+  behaviour didn't change. Then the network update on the CPU was the
+  bottleneck; it runs on the M2's GPU now (5 times faster for a batch), while
+  rollouts stay on the CPU where small batches are quicker.
+- **NumPy agrees with PyTorch** to about 5e-10 on the policy logits, checked
+  before any training, so the server will run the same bot that was trained.
+- **The first runs learned to defend and never to score.** Entropy fell and
+  losses dropped from 99% to 69%, but captures stayed at zero. The shaping
+  potential was minus the distance to the current objective, which jumps when
+  the objective changes: picking up the flag dropped it by about half the map,
+  an immediate penalty for the one move the bot most needed to learn. Shaping
+  of this form can't change the best policy in theory, but in practice a bot
+  that almost never got home only ever saw the penalty. The potential is now
+  minus the whole path still to walk before scoring, which doesn't change at
+  all when the flag is picked up.

@@ -17,15 +17,24 @@ at the middle line forever.
 from __future__ import annotations
 
 from collections import deque
+from functools import lru_cache
 
-from .engine import EAST, MOVES, NORTH, SOUTH, STAY, WEST, Rng, State
+from .engine import EAST, MOVES, NORTH, SOUTH, STAY, WEST, Map, Rng, State
 
 NOISE = 0.1
 
 
 def distances(state: State, team: int, targets: list[tuple[int, int]]) -> dict[tuple[int, int], int]:
-    """Steps from every cell this team can stand on to the nearest target."""
-    m = state.map
+    """Steps from every cell this team can stand on to the nearest target.
+    Don't modify the result: it is shared through a cache."""
+    return _distances(state.map, team, tuple(sorted(targets)))
+
+
+@lru_cache(maxsize=8192)
+def _distances(m: Map, team: int, targets: tuple[tuple[int, int], ...]) -> dict[tuple[int, int], int]:
+    # Depends only on the map, the team and the targets, which mostly stay the
+    # same for a whole match (a flag, a base), so most calls are cache hits.
+    # Profiling the RL environment found these searches were 92% of its time.
     dist = {t: 0 for t in targets if m.open(*t)}
     queue = deque(dist)
     while queue:
