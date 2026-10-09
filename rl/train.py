@@ -52,6 +52,8 @@ def main() -> None:
     ap.add_argument("--threads", type=int, default=4)
     ap.add_argument("--level-step", type=float, default=0.1, help="curriculum step; 0 disables it")
     ap.add_argument("--level-win", type=float, default=0.7, help="win rate that raises the level")
+    ap.add_argument("--start-level", type=float, default=0.0, help="the curriculum level to start at")
+    ap.add_argument("--init", help="start from this checkpoint instead of from scratch")
     ap.add_argument("--device", default="mps" if torch.backends.mps.is_available() else "cpu",
                     help="where the update runs; rollouts always run on the CPU")
     args = ap.parse_args()
@@ -70,6 +72,8 @@ def main() -> None:
     # an M2 than the CPU for a 2048 batch); `actor` plays the rollouts on the
     # CPU, where a batch of 80-160 rows is faster than moving it to the GPU.
     learner = Net().to(args.device)
+    if args.init:  # continue a previous run rather than start from scratch
+        learner.load_state_dict(torch.load(args.init, map_location=args.device))
     actor = Net()
     actor.load_state_dict(learner.state_dict())
     net = actor
@@ -84,7 +88,7 @@ def main() -> None:
     buf_rewards = np.zeros((T, rows), dtype=np.float32)
     buf_dones = np.zeros((T, rows), dtype=np.float32)
 
-    level = 0.0 if args.level_step > 0 else 1.0
+    level = args.start_level if args.level_step > 0 else 1.0
     at_level: deque = deque(maxlen=100)  # results since the level last changed
     results: deque = deque(maxlen=200)
     captures: deque = deque(maxlen=200)
