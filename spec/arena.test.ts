@@ -86,6 +86,21 @@ it.runIf(operatorKey)("lets a visitor alone play with bots in every other seat",
   for (const seat of snap.seats.filter((x: any) => x.kind === "bot")) expect(seat.bot).toEqual(expect.any(String));
 });
 
+it.runIf(operatorKey)("tells each visitor their own public label, the name the others and the log see", async () => {
+  const { id } = await createArena({ team_size: 2, seed: 114 });
+  const a = (await snapshot(await watch(await newVisitor(), id))).data;
+  const b = (await snapshot(await watch(await newVisitor(), id))).data;
+  for (const snap of [a, b]) {
+    expect(snap.label).toMatch(/^Visitor [0-9a-f]{6}$/);
+    expect(snap.seats[snap.you].label, "the roster shows the same name").toBe(snap.label);
+  }
+  expect(a.label).not.toBe(b.label);
+  await new Promise((r) => setTimeout(r, 300)); // the log is written just after
+  const log = (await (await fetch(url("/api/log"))).json()).events as any[];
+  const joins = log.filter((e) => e.event === "join" && e.detail.arena === id).map((e) => e.visitor);
+  expect(joins).toEqual(expect.arrayContaining([a.label, b.label]));
+});
+
 it.runIf(operatorKey)("resolves a turn as soon as the only person has chosen, and at the deadline if they haven't", async () => {
   const { id } = await createArena({ team_size: 2, seed: 102, deadline_seconds: 1.5 });
   const me = await newVisitor();

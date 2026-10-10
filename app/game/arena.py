@@ -165,6 +165,7 @@ class Arena:
             "match": self.match_view(),
             "seats": self.seat_view(),
             "you": self.seat_of(visitor_id),
+            "label": label(visitor_id),  # your own public name, as others and the log see it
             "bench": visitor_id in self.bench,
             "tick": self.tick_view(),
         }

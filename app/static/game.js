@@ -12,6 +12,7 @@
   let match = null; // the match's static parts: map, team size
   let seats = [];
   let you = null;
+  let me = ""; // your public label, the name others and the log see (never your cookie)
   let lastTick = 0; // when the last state arrived
   let turn = 0; // the turn now open
   let deadline = 2; // seconds a turn waits for people
@@ -91,10 +92,9 @@
       place(flagMarks[team], c ? c.x : x, c ? c.y - 0.3 : y);
     });
     if (you !== null) {
-      const me = t.players[you];
-      $("you").textContent = me.respawn
-        ? `You were caught. Back in ${me.respawn} turns.`
-        : `You are player ${you + 1}, on ${seats[you].team}.${me.carrying ? " You have their flag: get home!" : ""}`;
+      const p = t.players[you];
+      $("you").textContent = `You are ${me}, player ${you + 1} on ${seats[you].team}.` +
+        (p.respawn ? ` You were caught. Back in ${p.respawn} turns.` : p.carrying ? " You have their flag: get home!" : "");
     }
     if (t.break) {
       notice(`Next match in ${Math.ceil(t.break)} s.`);
@@ -147,6 +147,7 @@
     deadline = match.deadline_seconds;
     seats = snap.seats;
     you = snap.you;
+    me = snap.label;
     drawMap();
     drawSeats();
     drawTick(snap.tick);
@@ -156,7 +157,7 @@
       $("you").textContent = `Watching: blue is the ${blue === "scripted" ? "scripted" : `trained bot (${blue})`}, red the ${red === "scripted" ? "scripted bot" : red}.`;
       notice("");
     } else if (snap.bench) {
-      $("you").textContent = "Every seat has a person in it.";
+      $("you").textContent = `You are ${me}. Every seat has a person in it.`;
       notice("You're on the bench: you'll play from the next match, which grows to 3 a side.");
     } else if (!snap.tick.break) {
       notice(snap.tick.tick > 0 && you !== null ? "You joined a match already under way, taking over from a bot." : "");
