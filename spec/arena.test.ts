@@ -199,6 +199,32 @@ it.runIf(operatorKey)("hands a closed page's seat to a bot within five seconds, 
   await nextTick(watcher); // still going
 }, 15000);
 
+it.runIf(operatorKey)("gives your seat back when you come back after a bot has covered it", async () => {
+  const { id } = await createArena({ team_size: 2, seed: 116, deadline_seconds: 0.5 });
+  const watcher = await watch(await newVisitor(), id);
+  await snapshot(watcher);
+  const me = await newVisitor();
+  const first = await openStream(me, `/arena/events?arena=${id}`);
+  const seat = (await first.waitFor((e) => e.event === "snapshot", 3000)).data.you;
+  const closedAt = Date.now();
+  first.close();
+  await watcher.waitFor((e) => e.event === "seats" && e.data.seats[seat].kind === "bot" && e.at > closedAt, 8000);
+  const back = (await snapshot(await watch(me, id))).data;
+  expect(back.you).toBe(seat);
+  expect(back.seats[seat].kind).toBe("human");
+}, 15000);
+
+it.runIf(operatorKey)("shows everyone in a match the same board", async () => {
+  // ADR 0016: nobody sees more than anyone else, people or bots
+  const { id } = await createArena({ team_size: 2, seed: 117, deadline_seconds: 0.3 });
+  const sa = await watch(await newVisitor(), id);
+  const sb = await watch(await newVisitor(), id);
+  await Promise.all([snapshot(sa), snapshot(sb)]);
+  const t = (await nextTick(sa)).data;
+  const same = await sb.waitFor((e) => e.event === "tick" && e.data.tick === t.tick, 3000);
+  expect(same.data).toEqual(t);
+});
+
 it.runIf(operatorKey)("puts a fifth person on the bench when every seat is a person", async () => {
   const { id } = await createArena({ team_size: 2, seed: 107 });
   for (let i = 0; i < 4; i++) await snapshot(await watch(await newVisitor(), id));
