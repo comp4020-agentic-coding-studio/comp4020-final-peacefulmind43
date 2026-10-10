@@ -262,8 +262,13 @@ async def api_replay(match_id: int):
 
 @app.get("/api/matches/{match_id}/choices")
 async def api_choices(match_id: int):
-    """Every person's choice in a match: who (public label), seat, turn, move, when."""
+    """Every person's choice in a match: who (public label), seat, turn, move, when.
+    Only once the match is over: while it is live, others may learn that you
+    have chosen, never what (ADR 0012, 0016)."""
     with db.connect() as conn:
+        status = conn.execute("SELECT status FROM matches WHERE id = ?", (match_id,)).fetchone()
+        if status is None or status["status"] == "live":
+            raise HTTPException(404, "No choices to show: the match doesn't exist or isn't over yet.")
         rows = conn.execute(
             "SELECT at, visitor_id, seat, turn, dir FROM game_events WHERE match_id = ? ORDER BY id", (match_id,)
         ).fetchall()

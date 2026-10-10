@@ -59,6 +59,18 @@ it.runIf(operatorKey)("logs every choice with who, what and when", async () => {
   expect(JSON.stringify(choices), "never the cookie").not.toMatch(/visitor=/);
 }, 30000);
 
+it.runIf(operatorKey)("keeps a live match's choices to itself until the match is over", async () => {
+  // ADR 0012: others learn that you have chosen, not what. The choices are
+  // public only once the match has finished (ADR 0016).
+  const { id } = await createArena({ team_size: 2, seed: 4243, deadline_seconds: 5 });
+  const me = await newVisitor();
+  const s = await openStream(me, `/arena/events?arena=${id}`);
+  open.push(s);
+  const matchId = (await s.waitFor((e) => e.event === "snapshot", 3000)).data.match.id;
+  await choose(me, 3, 1);
+  expect((await fetch(url(`/api/matches/${matchId}/choices`))).status).toBe(404);
+});
+
 it("refuses a replay of a match that doesn't exist", async () => {
   expect((await fetch(url("/api/matches/999999999/replay"))).status).toBe(404);
 });
