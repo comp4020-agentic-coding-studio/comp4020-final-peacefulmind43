@@ -418,3 +418,19 @@ it.runIf(operatorKey)("logs who did what: each line names the person, the arena,
 it("doesn't let someone without a seat pause anything", async () => {
   expect((await fetch(url("/arena/pause"), { method: "POST", headers: { cookie: await newVisitor() } })).status).toBe(409);
 });
+
+it("answers 400, not 500, to a POST whose body isn't a JSON object", async () => {
+  const cookie = await newVisitor();
+  const paths = ["/arena/input", "/arena/pause", "/api/engine/simulate", ...(operatorKey ? ["/api/arenas"] : [])];
+  for (const path of paths) {
+    for (const body of ["not json", "[1, 2]", "null", "42", '"text"', "{"]) {
+      const res = await fetch(url(path), {
+        method: "POST",
+        headers: { "content-type": "application/json", cookie, "x-operator-key": operatorKey ?? "" },
+        body,
+      });
+      expect(res.status, `${path} with body ${body}`).toBe(400);
+      expect((await res.text()).length, "a short message").toBeLessThan(500);
+    }
+  }
+});

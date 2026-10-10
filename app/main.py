@@ -113,6 +113,21 @@ def remember(response, visitor_id: str, new: bool):
     return response
 
 
+async def json_object(request: Request) -> dict:
+    """A POST's body as a JSON object; an empty body is an empty object.
+    Anything else is the sender's mistake, so it gets a 400, never a 500."""
+    raw = await request.body()
+    if not raw.strip():
+        return {}
+    try:
+        body = json.loads(raw)
+    except (ValueError, RecursionError):  # not JSON, or not UTF-8
+        body = None
+    if not isinstance(body, dict):
+        raise HTTPException(400, "Send a JSON object.")
+    return body
+
+
 def sse(event: str, data: dict) -> str:
     return f"event: {event}\ndata: {json.dumps(data)}\n\n"
 
@@ -172,7 +187,7 @@ MOVES = ("stay", "up", "down", "right", "left")  # engine actions 0-4, as the pa
 @app.post("/arena/input", status_code=204)
 async def arena_input(request: Request):
     me = request.cookies.get(COOKIE)
-    body = await request.json()
+    body = await json_object(request)
     direction, seq, turn = body.get("dir"), body.get("seq"), body.get("turn")
     if direction not in range(5) or not isinstance(seq, int) or not (turn is None or isinstance(turn, int)):
         raise HTTPException(400, "Send dir (0-4), seq (an increasing number) and turn (the turn you're choosing for).")
@@ -192,6 +207,7 @@ async def arena_input(request: Request):
 @app.post("/arena/pause")
 async def arena_pause(request: Request):
     """Pause your match, or resume it if it's paused (ADR 0015)."""
+    await json_object(request)  # no fields, but a broken body is still refused
     me = request.cookies.get(COOKIE)
     result = hall.toggle_pause(me) if me else None
     if result is None:
@@ -211,7 +227,7 @@ def operator(request: Request) -> None:
 @app.post("/api/arenas")
 async def create_arena(request: Request):
     operator(request)
-    body = await request.json()
+    body = await json_object(request)
     team_size, seed = body.get("team_size"), body.get("seed")
     max_ticks, break_seconds = body.get("max_ticks", engine.MAX_TICKS), body.get("break_seconds", 10)
     deadline = body.get("deadline_seconds", 2.0)
@@ -356,7 +372,7 @@ async def api_simulate(request: Request):
     """Run the game engine on given inputs and return every tick's fingerprint,
     so the spec can check it against an independent engine. Pure computation:
     nothing is stored."""
-    body = await request.json()
+    body = await json_object(request)
     seed, team_size, actions = body.get("seed"), body.get("team_size"), body.get("actions")
     if not isinstance(seed, int) or team_size not in engine.SIZES or not isinstance(actions, list):
         raise HTTPException(400, "Send seed (int), team_size (2 or 3) and actions (a list of ticks).")
