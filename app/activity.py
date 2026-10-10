@@ -15,7 +15,7 @@ import time
 subscribers: set[asyncio.Queue] = set()
 
 KINDS = {"visit", "readme", "join", "leave", "takeover", "reclaim", "match_end", "watch_start", "watch_end",
-         "tag", "pickup", "capture"}
+         "tag", "pickup", "capture", "pause", "resume"}
 
 
 def visitor_label(visitor_id: str | None) -> str:
@@ -59,6 +59,8 @@ def describe(kind: str, detail: dict) -> str:
         "tag": "got caught",
         "pickup": "picked up the flag",
         "capture": "scored!",
+        "pause": "paused the match",
+        "resume": "resumed the match",
     }.get(kind, kind)
 
 

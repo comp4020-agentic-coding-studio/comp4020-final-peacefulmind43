@@ -99,6 +99,7 @@ class Arena:
     spans: list[tuple[int, str, int, int]] = field(default_factory=list)  # seat, visitor, from, to
     replay: list[list[int]] = field(default_factory=list)  # every turn's actions, for ADR 0014
     tally: dict = field(default_factory=dict)  # (seat, "pickup"/"capture"/"tag") -> count this match, for /log
+    paused_by: str | None = None  # the visitor who paused the match (ADR 0015)
 
     # --- what pages are told -------------------------------------------------
 
@@ -149,6 +150,7 @@ class Arena:
             "players": [{"x": p.x, "y": p.y, "respawn": p.respawn, "carrying": p.carrying} for p in s.players],
             "chosen": [i for i, seat in enumerate(self.seats) if seat.choice is not None],
             "break": max(0.0, round(self.break_until - time.monotonic(), 1)) if self.break_until else 0,
+            "paused": label(self.paused_by) if self.paused_by else None,
         }
 
     def seat_of(self, visitor_id: str) -> int | None:
@@ -255,6 +257,7 @@ class Hall:
         arena.spans = []
         arena.replay = []
         arena.tally = {}
+        arena.paused_by = None
         arena.break_until = 0.0
         arena.turn_opened = time.monotonic()
         arena.match_id = None if arena.kind == "watch" else self.store.start(arena)
@@ -380,6 +383,30 @@ class Hall:
         elif page.visitor_id in arena.bench and not any(p.visitor_id == page.visitor_id for p in arena.pages):
             arena.bench.remove(page.visitor_id)
 
+    def toggle_pause(self, visitor_id: str) -> dict | None:
+        """Pause the visitor's match, or resume it if it is paused (ADR 0015).
+        Anyone with a seat may do either. Returns None if they have no seat."""
+        arena = self.find(visitor_id)
+        i = arena.seat_of(visitor_id) if arena and arena.state else None
+        if i is None or arena.kind == "watch":
+            return None
+        now = time.monotonic()
+        if arena.paused_by:
+            arena.paused_by = None
+            arena.turn_opened = now
+            for seat in arena.seats:  # a long pause shouldn't make anyone look idle
+                seat.last_input = now
+                if seat.pages == 0 and seat.owner:
+                    seat.left_at = now
+            paused = False
+        else:
+            arena.paused_by = visitor_id
+            paused = True
+        arena.tell_all("pause", {"paused": paused, "by": label(visitor_id), "seat": i})
+        if self.on_log and arena.match_id is not None:
+            self.on_log("pause" if paused else "resume", visitor_id, {"arena": arena.id})
+        return {"paused": paused, "by": label(visitor_id)}
+
     def choose(self, visitor_id: str, direction: int, seq: int, turn: int | None) -> dict | None:
         """Record a choice for this turn (ADR 0012). Returns None if the visitor
         has no seat; otherwise what happened, for the log (ADR 0014). A choice
@@ -457,6 +484,9 @@ class Hall:
                     return
                 self.start_match(arena, present)
             return
+
+        if arena.paused_by:
+            return  # paused: no turn resolves and no seat is taken over (ADR 0015)
 
         # who has gone: a closed page after the grace period, an idle one after a minute
         changed = False

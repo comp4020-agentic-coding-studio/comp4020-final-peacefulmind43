@@ -236,3 +236,35 @@ it("refuses a choice from someone without a seat, and private arenas without the
 it.skipIf(operatorKey)("skips the private-arena checks: OPERATOR_KEY isn't set for this run", () => {
   console.warn("OPERATOR_KEY isn't set: the private-arena checks did not run");
 });
+
+it.runIf(operatorKey)("lets anyone in a match pause it for everyone, and anyone resume it", async () => {
+  const { id } = await createArena({ team_size: 2, seed: 109, deadline_seconds: 0.3 });
+  const a = await newVisitor();
+  const b = await newVisitor();
+  const sa = await watch(a, id);
+  await snapshot(sa);
+  const sb = await watch(b, id);
+  await snapshot(sb);
+  await nextTick(sa);
+
+  const paused = await fetch(url("/arena/pause"), { method: "POST", headers: { cookie: a } });
+  expect(paused.status).toBe(200);
+  expect(await paused.json()).toMatchObject({ paused: true });
+  const told = await sb.waitFor((e) => e.event === "pause" && e.data.paused === true, 2000);
+  expect(told.data.by, "others see who paused").toMatch(/^Visitor /);
+
+  // no turn resolves while paused, though the deadline is 0.3 s
+  const from = sa.events.length;
+  await new Promise((r) => setTimeout(r, 1500));
+  expect(sa.events.slice(from).filter((e) => e.event === "tick")).toHaveLength(0);
+
+  // someone else carries on
+  const resumed = await fetch(url("/arena/pause"), { method: "POST", headers: { cookie: b } });
+  expect(await resumed.json()).toMatchObject({ paused: false });
+  await sa.waitFor((e) => e.event === "pause" && e.data.paused === false, 2000);
+  await nextTick(sa);
+}, 15000);
+
+it("doesn't let someone without a seat pause anything", async () => {
+  expect((await fetch(url("/arena/pause"), { method: "POST", headers: { cookie: await newVisitor() } })).status).toBe(409);
+});

@@ -171,6 +171,16 @@ async def arena_input(request: Request):
             choice_buffer.append((at, info["match"], info["arena"], me, info["seat"], info["turn"], direction))
 
 
+@app.post("/arena/pause")
+async def arena_pause(request: Request):
+    """Pause your match, or resume it if it's paused (ADR 0015)."""
+    me = request.cookies.get(COOKIE)
+    result = hall.toggle_pause(me) if me else None
+    if result is None:
+        raise HTTPException(409, "Only someone with a seat in a match can pause it.")
+    return result
+
+
 def operator(request: Request) -> None:
     """Private arenas need the operator key (for the spec and for demos)."""
     expected = os.environ.get("OPERATOR_KEY")
