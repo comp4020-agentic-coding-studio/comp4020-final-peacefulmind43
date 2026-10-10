@@ -1,6 +1,8 @@
 """Capture the flag with bot teammates (ADR 0009)."""
 
 import asyncio
+import functools
+import hashlib
 import hmac
 import html
 import json
@@ -86,6 +88,17 @@ async def lifespan(_: FastAPI):
 app = FastAPI(lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
 app.mount("/static", StaticFiles(directory=HERE / "static"), name="static")
 templates = Jinja2Templates(directory=HERE / "templates")
+
+
+@functools.cache
+def asset(name: str) -> str:
+    """A static file's URL with a hash of its contents, so a browser never runs
+    an old script against a new page after a deploy."""
+    digest = hashlib.sha256((HERE / "static" / name).read_bytes()).hexdigest()[:10]
+    return f"/static/{name}?v={digest}"
+
+
+templates.env.globals["asset"] = asset
 
 
 def visitor(request: Request) -> tuple[str, bool]:
