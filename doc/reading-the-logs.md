@@ -66,7 +66,7 @@ at the start, and match it to the `join` lines.
 2. "Both are choosing now: each choice line has their label and their seat,
    so one person can never move the other's player."
 3. "Visitor be016f paused match 1. Visitor b17e82 resumed it: anyone with a
-   seat can do that, and people watching can't."
+   seat and the page open can do that, and people watching can't."
 4. "Visitor be016f closed the page. Five seconds later a bot took over player
    3 for them, and the match went on."
 5. "Visitor be016f came back to player 3. The match ended blue 2, red 1, and

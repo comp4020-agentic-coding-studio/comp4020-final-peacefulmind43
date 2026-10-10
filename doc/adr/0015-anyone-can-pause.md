@@ -1,6 +1,6 @@
 # 0015. Anyone in a match can pause it, and anyone can carry on
 
-Status: accepted (2026-10-10), amended 2026-10-11 (pausing needs the page open, ADR 0016)
+Status: accepted (2026-10-10)
 
 ## Context
 
@@ -25,9 +25,7 @@ Option 4. The game is for a few friends, who can sort out a pause between
 themselves; a time limit would cut off exactly the interruptions a pause is
 for, and anyone who disagrees can resume with one press.
 
-- Only people with a seat and the page open can pause or resume; people
-  watching can't, and nor can someone whose page is closed, even while their
-  seat is kept for them (amended 2026-10-11, ADR 0016).
+- Only people with a seat can pause or resume; people watching can't.
 - Everyone in the match sees, live, who paused and who resumed.
 - While paused, no turn resolves and nobody's seat is handed to a bot, however
   long the pause lasts. On resuming, everyone's idle clock starts again, so a
@@ -42,5 +40,4 @@ for, and anyone who disagrees can resume with one press.
 - Pauses and resumes are logged, so the activity log can tell a match's story
   including its interruptions.
 - Checked in `spec/`: a pause stops turns for everyone and others see who
-  paused; anyone with a seat can resume and turns carry on; watchers can't pause,
-  and nor can someone whose page is closed.
+  paused; anyone with a seat can resume and turns carry on; watchers can't pause.
