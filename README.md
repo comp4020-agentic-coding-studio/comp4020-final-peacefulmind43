@@ -2,7 +2,7 @@
 
 A small capture-the-flag game where people and bots play on the same teams.
 Open the page and you are in a game: alone, with a bot as your teammate, or
-with anyone else who opens it at the same time.
+with anyone who opens it at the same time.
 
 ## Who it is for
 
@@ -13,8 +13,8 @@ two browsers: you land in the same match.
 
 ## What good means here
 
-A bot in a game with people is good when the people are glad it is there. For
-this game, that means:
+A bot is good when the people in its game are glad it is there. That
+means:
 
 1. **A game can always start.** One person plays at once; others join the same
    match by taking over a bot's seat, and a seat someone leaves is covered by a
@@ -37,7 +37,7 @@ Tests in `spec/` and `tests/` check, on every change: every rule, against a
 second engine in TypeScript that must agree every turn; that the game is the
 same for both teams; that two people share a match and see each other's choices
 within a second; that turns wait for people up to the deadline; that bots can't
-see choices; and that the server runs the bot that was evaluated.
+see choices; and that the server runs the evaluated bot.
 
 People judge the rest: whether the bot feels like a good teammate, and whether
 the game is fun. My crit group plays it, and the activity log records what
@@ -66,7 +66,7 @@ happens.
 
 ## Limits
 
-- The trained bot so far learns against scripted bots, not against people, so
+- The trained bot so far learns against scripted bots, not people, so
   it may play differently with people than it does in tests.
-- Waiting for people helps, but the deadline still asks for a choice within two
-  seconds, which some players will find too short.
+- Waiting for people helps, but a choice is still needed within two seconds,
+  which some players will find too short.
