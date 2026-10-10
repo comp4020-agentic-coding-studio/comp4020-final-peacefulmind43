@@ -381,3 +381,12 @@ While paused no turn resolves and no seat is handed to a bot; resuming
 restarts everyone's idle clock. Pauses are logged. Two new spec checks: a
 pause stops turns and others see who paused, then someone else resumes; a
 visitor without a seat can't pause.
+
+## 2026-10-10: the pause button did nothing
+
+Playing it, the button did nothing: the browser had kept the old game.js,
+which had no handler for it. The spec could not see this, because it talks
+to the server directly. Scripts and styles are now loaded by a hash of their
+contents, so a new page always gets new code, after a deploy too. From here
+all work happens on main: crit tags freeze each crit's state, so a separate
+branch adds nothing.
