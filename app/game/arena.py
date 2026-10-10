@@ -402,10 +402,12 @@ class Hall:
 
     def toggle_pause(self, visitor_id: str) -> dict | None:
         """Pause the visitor's match, or resume it if it is paused (ADR 0015).
-        Anyone with a seat may do either. Returns None if they have no seat."""
+        Anyone with a seat and the page open may do either (ADR 0016). Returns
+        None if they have no seat, or their page is closed: the seat is kept
+        for them through the grace period, but they can't see the match."""
         arena = self.find(visitor_id)
         i = arena.seat_of(visitor_id) if arena and arena.state else None
-        if i is None or arena.kind == "watch":
+        if i is None or arena.kind == "watch" or arena.seats[i].pages == 0:
             return None
         now = time.monotonic()
         if arena.paused_by:

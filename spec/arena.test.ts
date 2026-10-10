@@ -434,3 +434,19 @@ it("answers 400, not 500, to a POST whose body isn't a JSON object", async () =>
     }
   }
 });
+
+it.runIf(operatorKey)("doesn't let someone whose page is closed pause, though their seat is still kept for them", async () => {
+  // ADR 0016: only a person with the page open may pause or resume
+  const { id } = await createArena({ team_size: 2, seed: 118, deadline_seconds: 0.3 });
+  const watcher = await watch(await newVisitor(), id);
+  await snapshot(watcher);
+  const me = await newVisitor();
+  const page = await openStream(me, `/arena/events?arena=${id}`);
+  const seat = (await page.waitFor((e) => e.event === "snapshot", 3000)).data.you;
+  expect(seat).not.toBeNull();
+  page.close();
+  await new Promise((r) => setTimeout(r, 300)); // well inside the 5-second grace period
+
+  expect((await fetch(url("/arena/pause"), { method: "POST", headers: { cookie: me } })).status).toBe(409);
+  await nextTick(watcher, watcher.events.length); // not paused: turns carry on
+}, 10000);

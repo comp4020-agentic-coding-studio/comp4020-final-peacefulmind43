@@ -211,7 +211,7 @@ async def arena_pause(request: Request):
     me = request.cookies.get(COOKIE)
     result = hall.toggle_pause(me) if me else None
     if result is None:
-        raise HTTPException(409, "Only someone with a seat in a match can pause it.")
+        raise HTTPException(409, "Only someone with a seat in a match, and the page open, can pause it.")
     return result
 
 
