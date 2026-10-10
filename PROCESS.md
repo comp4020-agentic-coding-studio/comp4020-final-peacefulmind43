@@ -121,6 +121,11 @@ by construction. The trade-offs are in ADRs 0001, 0011 and 0012.
 
 ## What comes next
 
-Finishing training, evaluating on unseen maps over several seeds, deploying the
-bot beside the scripted ones, and measuring whether people find it a better
-teammate.
+The bot now fills every empty seat: on 400 unseen maps it beats the scripted
+bot 48% of the time and loses 6%
+([`65adbcc`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-peacefulmind43/commit/65adbcc)).
+Beating a program is not being a good teammate for people, so the next step is
+measuring that with real players, starting at the crit. A pause button anyone
+in a match can press (ADR 0015,
+[`09d04d2`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-peacefulmind43/commit/09d04d2))
+came from that same question: what a group of friends needs while playing.

@@ -334,3 +334,50 @@ API, so it can also succeed by accident). The repo has never used Lob. The fix
 excludes that one detector in this repo, with the reason in the workflow;
 every other detector still runs. The course page says to fix a step that
 misfires on a site with nothing wrong in it, and this was the narrowest fix.
+
+## 2026-10-10: the bot passes the scripted bot
+
+The continuation run climbed the curriculum from level 0.3 to 1.0 (the full
+scripted bot) in about 12M samples, stepping up whenever it won 60% of 100
+games. Checkpoints evaluated on unseen maps against the full scripted bot
+showed it learn defence as the opponents got stronger:
+
+| when | win | draw | loss | captures for / against |
+|---|---|---|---|---|
+| first learning run (level 0.2) | 0% | 0% | 100% | 0.01 / 3.00 |
+| at level 0.6 (200 games) | 2.5% | 12% | 85.5% | 0.23 / 2.02 |
+| at level 0.8 (200 games) | 28.5% | 18% | 53.5% | 1.02 / 1.45 |
+| reaching level 1.0 (400 games) | 40.0% [35.3, 44.9] | 25% | 35% | 1.18 / 0.77 |
+| scripted against itself (400 games) | 29% | 43% | 28% | 0.69 / 0.68 |
+
+At level 1.0 it wins more than it loses against the scripted bot, and its
+whole 95% interval for wins sits above the scripted bot's own 29%. Its attack
+passed the scripted bot's first (at level 0.8 it already scored more); its
+defence caught up last. Training continues against the full scripted bot.
+
+## 2026-10-10: cur4 fills the seats
+
+The 30M-sample continuation finished against the full scripted bot. On 400
+unseen maps against the full scripted bot: 48.2% wins [43.4, 53.1], 45.8%
+draws, 6.0% losses, 1.44 captures for and 0.10 against (scripted against
+itself on the same maps: 29.2% / 43.0% / 27.8%, 0.69 / 0.68). It barely lets
+the scripted bot score, and scores twice as often.
+
+I chose to have it fill every empty seat. Beating the scripted bot is not the
+same as being a good teammate for people (Carroll et al. 2019 found agents
+trained only with programs can be poor human partners), and the README says
+so in its limits; the crit sessions are the first test with people. It is
+also the bot on show at `/?watch`. cur2 is removed from the server; its
+numbers stay in this log.
+
+## 2026-10-10: a pause button
+
+Asked for while playing. With several people in a match a pause stops
+everyone, so who may pause, and for how long, is a design choice (ADR 0015).
+I chose: anyone with a seat can pause, with no time limit, and anyone with a
+seat can resume. The game is for a few friends who can sort it out between
+themselves, and a time limit would cut off the interruptions a pause is for.
+While paused no turn resolves and no seat is handed to a bot; resuming
+restarts everyone's idle clock. Pauses are logged. Two new spec checks: a
+pause stops turns and others see who paused, then someone else resumes; a
+visitor without a seat can't pause.

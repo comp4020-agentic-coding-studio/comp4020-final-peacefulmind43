@@ -17,6 +17,7 @@
   let deadline = 2; // seconds a turn waits for people
   let chosen = new Set(); // seats that have chosen this turn
   let breakUntil = 0; // when the break between matches ends
+  let pausedBy = null; // who paused the match, if it's paused (ADR 0015)
   let held = null; // a direction held down (key or pad): chosen again each turn
   let heldSince = 0; // when it was pressed
   // A press only counts as holding after this long, like a keyboard's own
@@ -69,6 +70,7 @@
   function drawTick(t) {
     lastTick = performance.now();
     turn = t.tick;
+    showPause(t.paused);
     chosen = new Set(t.chosen || []);
     $("score-blue").textContent = t.score[0];
     $("score-red").textContent = t.score[1];
@@ -177,6 +179,32 @@
     moment("A new match started.");
   });
   stream.addEventListener("tick", (e) => drawTick(JSON.parse(e.data)));
+  function showPause(by) {
+    pausedBy = by || null;
+    const button = $("pause");
+    if (button) {
+      button.textContent = pausedBy ? "Resume" : "Pause";
+      button.hidden = watching || you === null;
+    }
+    if (pausedBy) notice(`Paused by ${pausedBy}. Anyone in the match can press Resume (or P) to carry on.`);
+    else if ($("notice").textContent.startsWith("Paused by")) notice("");
+  }
+  stream.addEventListener("pause", (e) => {
+    const p = JSON.parse(e.data);
+    showPause(p.paused ? p.by : null);
+    if (!p.paused) lastTick = performance.now(); // the turn starts again from now
+    moment(`${p.by} ${p.paused ? "paused" : "resumed"} the match`);
+  });
+  async function togglePause() {
+    if (you === null) return;
+    const res = await fetch("/arena/pause", { method: "POST" });
+    if (res.ok) showPause((await res.json()).paused ? "you" : null);
+  }
+  $("pause")?.addEventListener("click", togglePause);
+  document.addEventListener("keydown", (e) => {
+    if ((e.key === "p" || e.key === "P") && !e.repeat && !(e.target instanceof HTMLInputElement)) togglePause();
+  });
+
   stream.addEventListener("chosen", (e) => {
     const c = JSON.parse(e.data);
     if (c.turn === turn) {
@@ -217,6 +245,11 @@
     const bar = $("timer-bar");
     if (!lastTick || !match) return;
     const now = performance.now();
+    if (pausedBy) {
+      text.textContent = "Paused";
+      bar.style.width = "0%";
+      return;
+    }
     if (breakUntil > now) {
       text.textContent = `Next match in ${((breakUntil - now) / 1000).toFixed(1)} s`;
       bar.style.width = "0%";

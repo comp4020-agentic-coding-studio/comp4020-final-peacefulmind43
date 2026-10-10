@@ -1,6 +1,8 @@
 """Capture the flag with bot teammates (ADR 0009)."""
 
 import asyncio
+import functools
+import hashlib
 import hmac
 import html
 import json
@@ -88,6 +90,17 @@ app.mount("/static", StaticFiles(directory=HERE / "static"), name="static")
 templates = Jinja2Templates(directory=HERE / "templates")
 
 
+@functools.cache
+def asset(name: str) -> str:
+    """A static file's URL with a hash of its contents, so a browser never runs
+    an old script against a new page after a deploy."""
+    digest = hashlib.sha256((HERE / "static" / name).read_bytes()).hexdigest()[:10]
+    return f"/static/{name}?v={digest}"
+
+
+templates.env.globals["asset"] = asset
+
+
 def visitor(request: Request) -> tuple[str, bool]:
     """The visitor's id from their cookie, or a new one (and whether it's new)."""
     existing = request.cookies.get(COOKIE)
@@ -169,6 +182,16 @@ async def arena_input(request: Request):
                           "match": info["match"], "turn": info["turn"], "seat": info["seat"], "dir": direction}), flush=True)
         if info["match"] is not None:
             choice_buffer.append((at, info["match"], info["arena"], me, info["seat"], info["turn"], direction))
+
+
+@app.post("/arena/pause")
+async def arena_pause(request: Request):
+    """Pause your match, or resume it if it's paused (ADR 0015)."""
+    me = request.cookies.get(COOKIE)
+    result = hall.toggle_pause(me) if me else None
+    if result is None:
+        raise HTTPException(409, "Only someone with a seat in a match can pause it.")
+    return result
 
 
 def operator(request: Request) -> None:
