@@ -390,3 +390,42 @@ to the server directly. Scripts and styles are now loaded by a hash of their
 contents, so a new page always gets new code, after a deploy too. From here
 all work happens on main: crit tags freeze each crit's state, so a separate
 branch adds nothing.
+
+## 2026-10-10: who may change what, and logs for a narrator
+
+Crit 10 asks that the server check what each person may see and change, and
+that the decision is written down. Before writing it, I audited the checks in
+the code instead of trusting what I remembered. Most held: the server finds
+your seat from your cookie, a request can't name a seat, only seated people
+can pause, private arenas need the operator key, and no cookie is shown or
+logged. The audit found two real holes, each fixed with a spec check that
+failed first:
+
+- **A reload could lose your seat.** A newcomer could take the seat of
+  someone whose page had just closed, so in a full match a reload put you on
+  the bench. ADR 0011 promises your seat back. Now a newcomer can take a gone
+  person's seat only after a bot covers it
+  ([`ba7700a`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-peacefulmind43/commit/ba7700a)).
+- **Live choices were public.** Choices are saved every two seconds, and the
+  choices endpoint answered for live matches, so someone could read what
+  another person chose before the turn resolved. It now answers only once the
+  match is over ([`e573e75`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-peacefulmind43/commit/e573e75)).
+
+New spec checks cover the rest: a request naming someone else's seat still
+only chooses for your own; people on the bench, watchers and people with no
+cookie can't move or pause; the cookie is in no page, stream or log view; your
+seat comes back after a bot covers it; everyone sees the same board
+([`1b8f4dd`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-peacefulmind43/commit/1b8f4dd), [`01781c1`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-peacefulmind43/commit/01781c1)). ADR 0016 writes the
+decision down: an anonymous cookie with a public label, and for each action
+who may do it, where the server checks it, and which check holds it
+([`2267667`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-peacefulmind43/commit/2267667)).
+
+The demo is narrated from the logs while classmates play, so I read the real
+lines from two Chrome profiles on a local server. Bots were logged as "A new
+visitor", lines had no match or seat, and closing the page was never logged.
+Each line now says who, which arena, match and seat, and ends with a plain
+sentence, the one `/log` shows ([`378b5a1`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-peacefulmind43/commit/378b5a1)). The page now
+tells each person their label, so they can find themselves in the log
+([`e45222e`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-peacefulmind43/commit/e45222e)). `doc/reading-the-logs.md` explains each line, a
+narration script, and how the same logs debug the live app
+([`5fb852f`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-peacefulmind43/commit/5fb852f)).
