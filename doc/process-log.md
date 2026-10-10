@@ -354,3 +354,18 @@ At level 1.0 it wins more than it loses against the scripted bot, and its
 whole 95% interval for wins sits above the scripted bot's own 29%. Its attack
 passed the scripted bot's first (at level 0.8 it already scored more); its
 defence caught up last. Training continues against the full scripted bot.
+
+## 2026-10-10: cur4 fills the seats
+
+The 30M-sample continuation finished against the full scripted bot. On 400
+unseen maps against the full scripted bot: 48.2% wins [43.4, 53.1], 45.8%
+draws, 6.0% losses, 1.44 captures for and 0.10 against (scripted against
+itself on the same maps: 29.2% / 43.0% / 27.8%, 0.69 / 0.68). It barely lets
+the scripted bot score, and scores twice as often.
+
+I chose to have it fill every empty seat. Beating the scripted bot is not the
+same as being a good teammate for people (Carroll et al. 2019 found agents
+trained only with programs can be poor human partners), and the README says
+so in its limits; the crit sessions are the first test with people. It is
+also the bot on show at `/?watch`. cur2 is removed from the server; its
+numbers stay in this log.
