@@ -252,6 +252,72 @@ it("refuses a choice from someone without a seat, and private arenas without the
   expect([403, 404]).toContain(res.status);
 });
 
+// ADR 0016: who may change what. The server finds your seat from your cookie;
+// nothing in a request can name another seat.
+it.runIf(operatorKey)("only ever acts for your own seat, even if the request names someone else's", async () => {
+  const { id } = await createArena({ team_size: 2, seed: 111, deadline_seconds: 5 });
+  const a = await newVisitor();
+  const b = await newVisitor();
+  const sa = await watch(a, id);
+  const seatA = (await snapshot(sa)).data.you;
+  const seatB = (await snapshot(await watch(b, id))).data.you;
+  expect(seatA).not.toBeNull();
+  expect(seatB).not.toBeNull();
+  expect(seatB).not.toBe(seatA);
+
+  const from = sa.events.length;
+  const forged = await fetch(url("/arena/input"), {
+    method: "POST",
+    headers: { "content-type": "application/json", cookie: b },
+    body: JSON.stringify({ dir: EAST, seq: seq++, seat: seatA }),
+  });
+  expect(forged.status).toBe(204);
+  await sa.waitFor((e) => e.event === "chosen" && e.data.seat === seatB, 2000, from);
+  await new Promise((r) => setTimeout(r, 500));
+  const chosen = sa.events.slice(from).filter((e) => e.event === "chosen").map((e) => e.data.seat);
+  expect(chosen, "B's request chose for A's seat").not.toContain(seatA);
+  expect(chosen).toEqual([seatB]);
+}, 15000);
+
+it.runIf(operatorKey)("refuses moves and pauses from people on the bench, people watching, and people with no cookie", async () => {
+  const { id } = await createArena({ team_size: 2, seed: 112 });
+  for (let i = 0; i < 4; i++) await snapshot(await watch(await newVisitor(), id));
+  const benched = await newVisitor();
+  expect((await snapshot(await watch(benched, id))).data.bench).toBe(true);
+  const watcher = await newVisitor();
+  expect((await snapshot(await watch(watcher, "watch"))).data.you).toBeNull();
+
+  for (const cookie of [benched, watcher]) {
+    expect((await choose(cookie, EAST, seq++)).status).toBe(409);
+    expect((await fetch(url("/arena/pause"), { method: "POST", headers: { cookie } })).status).toBe(409);
+  }
+  const anonymous = await fetch(url("/arena/input"), {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ dir: EAST, seq: seq++ }),
+  });
+  expect(anonymous.status).toBe(409);
+  expect((await fetch(url("/arena/pause"), { method: "POST" })).status).toBe(409);
+});
+
+it.runIf(operatorKey)("never sends a visitor's cookie to anyone: not on the game page, the live view or the log", async () => {
+  const { id } = await createArena({ team_size: 2, seed: 113, deadline_seconds: 0.5 });
+  const me = await newVisitor();
+  const value = me.split("=")[1];
+  const s = await watch(me, id);
+  const snap = await snapshot(s);
+  await choose(me, EAST, seq++);
+  await new Promise((r) => setTimeout(r, 300)); // the log is written just after
+  const seen = [
+    JSON.stringify(s.events.map((e) => e.data)),
+    JSON.stringify(snap.data),
+    await (await fetch(url("/api/now"))).text(),
+    await (await fetch(url("/api/log"))).text(),
+    await (await fetch(url("/log"))).text(),
+  ];
+  for (const text of seen) expect(text.includes(value), "a cookie was sent out").toBe(false);
+});
+
 it.skipIf(operatorKey)("skips the private-arena checks: OPERATOR_KEY isn't set for this run", () => {
   console.warn("OPERATOR_KEY isn't set: the private-arena checks did not run");
 });
