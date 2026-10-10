@@ -84,7 +84,7 @@ seat from your cookie, so a request can't move anyone else's player. Each rule
 has a spec check, and auditing the code against them found two holes: a
 reload in a full match could lose you your seat to a newcomer
 ([`ba7700a`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-peacefulmind43/commit/ba7700a)), and a live match's choices could be read before the turn
-resolved ([`e573e75`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-peacefulmind43/commit/e573e75)). A pause button anyone seated can press (ADR 0015,
+resolved ([`e573e75`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-peacefulmind43/commit/e573e75)). A pause button anyone seated with the page open can press (ADR 0015,
 [`09d04d2`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-peacefulmind43/commit/09d04d2)) came from asking what a group of friends needs while playing.
 
 ## Logs a narrator can read

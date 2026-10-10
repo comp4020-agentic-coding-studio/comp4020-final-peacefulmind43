@@ -429,3 +429,19 @@ tells each person their label, so they can find themselves in the log
 ([`e45222e`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-peacefulmind43/commit/e45222e)). `doc/reading-the-logs.md` explains each line, a
 narration script, and how the same logs debug the live app
 ([`5fb852f`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-peacefulmind43/commit/5fb852f)).
+
+## 2026-10-11: broken bodies, pausing from a closed page, a shorter README
+
+Three small fixes, each with a spec check that failed first:
+
+- **A broken body gave a 500.** A POST whose body was not JSON, or was JSON
+  but not an object, crashed the handler. Now one helper reads every POST body
+  and answers 400 with a short message ([`e2eeba2`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-peacefulmind43/commit/e2eeba2)).
+- **A closed page could still pause.** After you close the page, your seat is
+  kept for you through the grace period, and the server still let a direct
+  request from you pause or resume. But you can't see the match, so now it
+  answers 409, the same as having no seat. ADR 0016 is amended to say so, and
+  ADR 0015's "anyone with a seat" is narrowed ([`952ed6f`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-peacefulmind43/commit/952ed6f)).
+- **The README was 604 words**, over the 600 limit. Tighter wording brings it
+  to 593, with no claim, heading, source or limit dropped
+  ([`32a72c9`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-peacefulmind43/commit/32a72c9)).
