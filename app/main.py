@@ -166,6 +166,9 @@ async def arena_events(request: Request, arena: str | None = None):
     return remember(response, me, new)
 
 
+MOVES = ("stay", "up", "down", "right", "left")  # engine actions 0-4, as the page's buttons name them
+
+
 @app.post("/arena/input", status_code=204)
 async def arena_input(request: Request):
     me = request.cookies.get(COOKIE)
@@ -178,8 +181,10 @@ async def arena_input(request: Request):
         raise HTTPException(409, "You don't have a seat. Open the game first.")
     if info["accepted"]:
         at = int(time.time())
-        print(json.dumps({"event": "choice", "visitor": activity.visitor_label(me), "at": at, "arena": info["arena"],
-                          "match": info["match"], "turn": info["turn"], "seat": info["seat"], "dir": direction}), flush=True)
+        name, move = activity.visitor_label(me), MOVES[direction]
+        print(json.dumps({"event": "choice", "visitor": name, "at": at, "arena": info["arena"], "match": info["match"],
+                          "turn": info["turn"], "seat": info["seat"], "dir": direction, "move": move,
+                          "text": f"{name} chose {move} for player {info['seat'] + 1}, turn {info['turn']}"}), flush=True)
         if info["match"] is not None:
             choice_buffer.append((at, info["match"], info["arena"], me, info["seat"], info["turn"], direction))
 

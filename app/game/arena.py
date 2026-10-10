@@ -170,6 +170,13 @@ class Arena:
             "tick": self.tick_view(),
         }
 
+    def where(self, i: int | None = None) -> dict:
+        """Which arena, match and seat a log line is about (ADR 0014, 0016)."""
+        out = {"arena": self.id, "match": self.match_id}
+        if i is not None:
+            out.update(seat=i, team="blue" if self.seats[i].team == 0 else "red")
+        return out
+
     def tell_all(self, event: str, data: dict) -> None:
         for page in self.pages:
             page.send(event, data)
@@ -275,8 +282,8 @@ class Hall:
         if arena.match_id is not None:
             self.store.finish(arena.match_id, s, list(arena.spans), list(arena.replay))
         arena.tell_all("over", {"match_id": arena.match_id, "score": list(s.score)})
-        if self.on_log:
-            self.on_log("match_end", None, {"arena": arena.id, "score": f"{s.score[0]}-{s.score[1]}"})
+        if self.on_log and arena.match_id is not None:  # a watch match nobody played isn't logged
+            self.on_log("match_end", None, {**arena.where(), "score": f"{s.score[0]}-{s.score[1]}"})
         arena.break_until = now + arena.break_seconds
 
     # --- people --------------------------------------------------------------
@@ -307,7 +314,7 @@ class Hall:
                     arena.seats_changed()
                     arena.tell_all("moment", {"kind": "join", "seat": i, "label": label(visitor_id)})
                 if self.on_log:
-                    self.on_log("join", visitor_id, {"arena": arena.id, "team": "blue" if team == 0 else "red"})
+                    self.on_log("join", visitor_id, arena.where(i))
                 return i
         arena.bench.append(visitor_id)
         return None
@@ -326,6 +333,7 @@ class Hall:
         if arena is not None and arena_id and arena.id != arena_id:
             self.release(arena, visitor_id)  # moving to another arena
             arena = None
+        returning = arena is not None  # they already had a seat (or a bench place) here
         if arena is None:
             if arena_id:
                 arena = self.arenas.get(arena_id)
@@ -343,13 +351,14 @@ class Hall:
         if i is not None:
             seat = arena.seats[i]
             seat.pages += 1
+            back = returning and (seat.covering or seat.pages == 1)  # not a second tab
             if seat.covering:
                 seat.covering = False
                 seat.last_input = time.monotonic()
                 arena.seats_changed()
                 arena.tell_all("moment", {"kind": "reclaim", "seat": i, "label": label(visitor_id)})
-                if self.on_log:
-                    self.on_log("reclaim", visitor_id, {"arena": arena.id})
+            if back and self.on_log:
+                self.on_log("reclaim", visitor_id, arena.where(i))
         page.send("snapshot", arena.snapshot(visitor_id))
         return arena, page
 
@@ -368,6 +377,8 @@ class Hall:
         if i is not None:
             seat = arena.seats[i]
             arena.spans.append((i, visitor_id, seat.since_tick, arena.state.tick))
+            if self.on_log:
+                self.on_log("leave", visitor_id, arena.where(i))
             arena.seats[i] = Seat(team=seat.team)
             arena.seats_changed()
         if visitor_id in arena.bench:
@@ -382,8 +393,12 @@ class Hall:
             seat.pages = max(0, seat.pages - 1)
             if seat.pages == 0:
                 seat.left_at = time.monotonic()
+                if self.on_log:  # a bot covers the seat after the grace period, unless they come back
+                    self.on_log("leave", page.visitor_id, arena.where(i))
         elif page.visitor_id in arena.bench and not any(p.visitor_id == page.visitor_id for p in arena.pages):
             arena.bench.remove(page.visitor_id)
+            if self.on_log:
+                self.on_log("leave", page.visitor_id, {**arena.where(), "bench": True})
 
     def toggle_pause(self, visitor_id: str) -> dict | None:
         """Pause the visitor's match, or resume it if it is paused (ADR 0015).
@@ -406,7 +421,7 @@ class Hall:
             paused = True
         arena.tell_all("pause", {"paused": paused, "by": label(visitor_id), "seat": i})
         if self.on_log and arena.match_id is not None:
-            self.on_log("pause" if paused else "resume", visitor_id, {"arena": arena.id})
+            self.on_log("pause" if paused else "resume", visitor_id, arena.where(i))
         return {"paused": paused, "by": label(visitor_id)}
 
     def choose(self, visitor_id: str, direction: int, seq: int, turn: int | None) -> dict | None:
@@ -427,6 +442,8 @@ class Hall:
             seat.covering = False
             arena.seats_changed()
             arena.tell_all("moment", {"kind": "reclaim", "seat": i, "label": label(visitor_id)})
+            if self.on_log:
+                self.on_log("reclaim", visitor_id, arena.where(i))
         first = seat.choice is None
         seat.choice = direction
         times = self.recent_choices.setdefault(visitor_id, [])
@@ -503,7 +520,7 @@ class Hall:
                 changed = True
                 arena.tell_all("moment", {"kind": "takeover", "seat": i, "label": label(seat.owner)})
                 if self.on_log:
-                    self.on_log("takeover", seat.owner, {"arena": arena.id, "why": "left" if gone else "idle"})
+                    self.on_log("takeover", seat.owner, {**arena.where(i), "why": "left" if gone else "idle"})
         if changed:
             arena.seats_changed()
 
@@ -541,7 +558,7 @@ class Hall:
                 arena.tell_all("moment", {"kind": name, "seat": i, "label": label(seat.owner) if seat.human else "Bot"})
                 if self.on_log and arena.match_id is not None:  # the story of a match, for /log
                     who = seat.owner if seat.human else None
-                    self.on_log(name, who, {"arena": arena.id, "seat": i, "bot": None if seat.human else arena.bot_name(seat.team)})
+                    self.on_log(name, who, {**arena.where(i), "bot": None if seat.human else arena.bot_name(seat.team)})
         view = arena.tick_view()
         for page in arena.pages:
             page.offer_tick(view)

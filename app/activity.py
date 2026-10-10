@@ -26,8 +26,24 @@ def visitor_label(visitor_id: str | None) -> str:
     return "Visitor " + hashlib.sha256(visitor_id.encode()).hexdigest()[:6]
 
 
+MOMENTS = ("tag", "pickup", "capture")
+
+
+def who(kind: str, visitor_id: str | None, detail: dict) -> str:
+    """Who did it, as the log shows it: a person's public label, a bot's name,
+    or the arena for a match that ended."""
+    if visitor_id:
+        return visitor_label(visitor_id)
+    if kind in MOMENTS:
+        return f"A bot ({detail.get('bot') or 'scripted'})"
+    if kind == "match_end":
+        return f"Arena {detail.get('arena', '?')}"
+    return "A new visitor"
+
+
 def record(conn, kind: str, visitor_id: str | None, detail: dict | None = None) -> int:
-    """Log one action: stdout, the events table, and every open log view."""
+    """Log one action: stdout, the events table, and every open log view.
+    The stdout line ends with `text`, the same sentence /log shows."""
     if kind not in KINDS:
         raise ValueError(f"unknown kind of event: {kind}")
     detail = detail or {}
@@ -36,7 +52,9 @@ def record(conn, kind: str, visitor_id: str | None, detail: dict | None = None) 
         "INSERT INTO events (at, visitor_id, round_id, kind, detail) VALUES (?, ?, NULL, ?, ?)",
         (at, visitor_id, kind, json.dumps(detail)),
     )
-    print(json.dumps({"event": kind, "visitor": visitor_label(visitor_id), "at": at, **detail}), flush=True)
+    name = who(kind, visitor_id, detail)
+    line = {"event": kind, "visitor": name, "at": at, **detail, "text": f"{name} {describe(kind, detail)}"}
+    print(json.dumps(line), flush=True)
     if subscribers:
         row = conn.execute("SELECT * FROM events WHERE id = ?", (cur.lastrowid,)).fetchone()
         entry = view(row)
@@ -46,21 +64,27 @@ def record(conn, kind: str, visitor_id: str | None, detail: dict | None = None) 
 
 
 def describe(kind: str, detail: dict) -> str:
+    seat = detail.get("seat")
+    player = f"player {seat + 1}" if isinstance(seat, int) else "their seat"
+    on = f"{player}, {detail['team']}" if "team" in detail and isinstance(seat, int) else player
+    at = f" ({on})" if isinstance(seat, int) else ""  # older lines have no seat
+    match = f"match {detail['match']}" if detail.get("match") is not None else "the match"
     return {
         "visit": "opened the game",
         "readme": "read the About page",
-        "join": f"took a seat on {detail.get('team', 'a team')}",
-        "leave": "left their seat",
-        "takeover": "went quiet; a bot is covering their seat",
-        "reclaim": "came back and took their seat back",
-        "match_end": f"finished a match {detail.get('score', '')}".strip(),
+        "join": f"joined {detail.get('team', 'a team')}" + (f" as {player}" if isinstance(seat, int) else "")
+        + (f" in {match}" if detail.get("match") is not None else ""),
+        "leave": "left the bench" if detail.get("bench") else f"closed the game page{at}",
+        "takeover": f"{'has gone' if detail.get('why') == 'left' else 'went quiet'}; a bot now plays {player} for them",
+        "reclaim": f"came back to {player}",
+        "match_end": f"finished {match}, blue {detail.get('score', '?').replace('-', ', red ', 1)}",
         "watch_start": "started watching",
         "watch_end": f"stopped watching after {detail.get('seconds', 0)} s",
-        "tag": "got caught",
-        "pickup": "picked up the flag",
-        "capture": "scored!",
-        "pause": "paused the match",
-        "resume": "resumed the match",
+        "tag": f"got caught{at}",
+        "pickup": f"picked up the flag{at}",
+        "capture": f"scored!{at}",
+        "pause": f"paused {match}{at}",
+        "resume": f"resumed {match}{at}",
     }.get(kind, kind)
 
 
@@ -69,8 +93,7 @@ def view(row) -> dict:
     return {
         "id": row["id"],
         "at": row["at"],
-        "visitor": visitor_label(row["visitor_id"]) if row["visitor_id"] or row["kind"] not in ("tag", "pickup", "capture")
-        else f"A bot ({detail.get('bot') or 'scripted'})",
+        "visitor": who(row["kind"], row["visitor_id"], detail),
         "event": row["kind"],
         "text": describe(row["kind"], detail),
         "detail": detail,

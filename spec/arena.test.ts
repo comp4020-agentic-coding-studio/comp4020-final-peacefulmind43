@@ -365,6 +365,30 @@ it.runIf(operatorKey)("lets anyone in a match pause it for everyone, and anyone 
   await nextTick(sa);
 }, 15000);
 
+it.runIf(operatorKey)("logs who did what: each line names the person, the arena, the match and the seat", async () => {
+  const { id } = await createArena({ team_size: 2, seed: 115, deadline_seconds: 0.5 });
+  const a = await newVisitor();
+  const b = await newVisitor();
+  const sa = await watch(a, id);
+  const snapA = (await snapshot(sa)).data;
+  const sb = await openStream(b, `/arena/events?arena=${id}`);
+  const snapB = (await sb.waitFor((e) => e.event === "snapshot", 3000)).data;
+  await fetch(url("/arena/pause"), { method: "POST", headers: { cookie: a } });
+  await fetch(url("/arena/pause"), { method: "POST", headers: { cookie: b } });
+  sb.close();
+  await new Promise((r) => setTimeout(r, 500)); // the log is written just after
+
+  const log = ((await (await fetch(url("/api/log"))).json()).events as any[]).filter((e) => e.detail.arena === id);
+  const line = (event: string, visitor: string) => log.find((e) => e.event === event && e.visitor === visitor);
+  const match = snapA.match.id;
+  expect(line("join", snapA.label)?.detail).toMatchObject({ match, seat: snapA.you });
+  expect(line("join", snapB.label)?.detail).toMatchObject({ match, seat: snapB.you });
+  expect(line("pause", snapA.label)?.detail).toMatchObject({ match, seat: snapA.you });
+  expect(line("resume", snapB.label)?.detail).toMatchObject({ match, seat: snapB.you });
+  expect(line("leave", snapB.label)?.detail).toMatchObject({ match, seat: snapB.you });
+  expect(line("join", snapB.label).text).toBe(`joined ${snapB.seats[snapB.you].team} as player ${snapB.you + 1} in match ${match}`);
+}, 15000);
+
 it("doesn't let someone without a seat pause anything", async () => {
   expect((await fetch(url("/arena/pause"), { method: "POST", headers: { cookie: await newVisitor() } })).status).toBe(409);
 });
