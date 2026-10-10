@@ -369,3 +369,15 @@ trained only with programs can be poor human partners), and the README says
 so in its limits; the crit sessions are the first test with people. It is
 also the bot on show at `/?watch`. cur2 is removed from the server; its
 numbers stay in this log.
+
+## 2026-10-10: a pause button
+
+Asked for while playing. With several people in a match a pause stops
+everyone, so who may pause, and for how long, is a design choice (ADR 0015).
+I chose: anyone with a seat can pause, with no time limit, and anyone with a
+seat can resume. The game is for a few friends who can sort it out between
+themselves, and a time limit would cut off the interruptions a pause is for.
+While paused no turn resolves and no seat is handed to a bot; resuming
+restarts everyone's idle clock. Pauses are logged. Two new spec checks: a
+pause stops turns and others see who paused, then someone else resumes; a
+visitor without a seat can't pause.
