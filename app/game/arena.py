@@ -293,8 +293,9 @@ class Hall:
         order = (0, 1) if humans[0] <= humans[1] else (1, 0)
         for team in order:
             free = [i for i, s in enumerate(arena.seats) if s.team == team and s.owner is None]
-            # a seat whose owner has gone (no open page) can be taken too
-            free += [i for i, s in enumerate(arena.seats) if s.team == team and s.owner and s.pages == 0]
+            # a seat whose owner has gone can be taken too, but only once a bot
+            # covers it: within the grace period it is kept for someone reloading
+            free += [i for i, s in enumerate(arena.seats) if s.team == team and s.owner and s.pages == 0 and s.covering]
             if free:
                 i = free[0]
                 seat = arena.seats[i]

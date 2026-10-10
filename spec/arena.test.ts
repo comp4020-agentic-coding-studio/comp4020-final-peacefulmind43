@@ -192,6 +192,25 @@ it.runIf(operatorKey)("puts a fifth person on the bench when every seat is a per
   expect(fifth.bench).toBe(true);
 });
 
+it.runIf(operatorKey)("keeps a seat for someone who reloads the page, even when a newcomer arrives at that moment", async () => {
+  // ADR 0011: coming back gives you your seat back. Within the grace period a
+  // newcomer must not take it; they wait on the bench instead.
+  const { id } = await createArena({ team_size: 2, seed: 110, deadline_seconds: 0.5 });
+  for (let i = 0; i < 3; i++) await snapshot(await watch(await newVisitor(), id));
+  const reloader = await newVisitor();
+  const first = await openStream(reloader, `/arena/events?arena=${id}`);
+  const seat = (await first.waitFor((e) => e.event === "snapshot", 3000)).data.you;
+  expect(seat).not.toBeNull();
+  first.close();
+  await new Promise((r) => setTimeout(r, 300)); // the server notices the page has closed
+
+  const newcomer = (await snapshot(await watch(await newVisitor(), id))).data;
+  expect(newcomer.you, "the newcomer took the seat of someone reloading").toBeNull();
+  expect(newcomer.bench).toBe(true);
+  const back = (await snapshot(await watch(reloader, id))).data;
+  expect(back.you).toBe(seat);
+});
+
 it.runIf(operatorKey)("saves a finished match, then starts the next one", async () => {
   const { id } = await createArena({ team_size: 2, seed: 108, max_ticks: 12, break_seconds: 1, deadline_seconds: 0.2 });
   const s = await watch(await newVisitor(), id);
