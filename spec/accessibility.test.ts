@@ -24,8 +24,14 @@ async function violations(path: string, cookie?: string) {
     .map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(" ")).join(", ")}`);
 }
 
+// a finished match's replay page, if there is one yet (the spec plays some)
+async function replayPath(): Promise<string[]> {
+  const recent = (await (await fetch(url("/api/matches/recent"))).json()) as { id: number }[];
+  return recent.length ? [`/matches/${recent[0].id}`] : [];
+}
+
 it("has no serious accessibility problems on any page", async () => {
-  for (const path of ["/", "/log", "/readme/", "/study", "/me"]) {
+  for (const path of ["/", "/log", "/readme/", "/study", "/me", ...(await replayPath())]) {
     expect(await violations(path), path).toEqual([]);
   }
 });

@@ -71,6 +71,40 @@ it.runIf(operatorKey)("keeps a live match's choices to itself until the match is
   expect((await fetch(url(`/api/matches/${matchId}/choices`))).status).toBe(404);
 });
 
+it.runIf(operatorKey)("serves a replay page whose every frame the independent engine reproduces, to the saved final score", async () => {
+  const { matchId, over } = await playShortMatch();
+  const page = await fetchSaved(`/matches/${matchId}`);
+  expect(page.status).toBe(200);
+  const html = await page.text();
+  expect(html).toContain(`data-match="${matchId}"`);
+  expect(html).toMatch(/replay\.js/);
+
+  const res = await fetch(url(`/api/matches/${matchId}/frames`));
+  expect(res.status).toBe(200);
+  const data = await res.json();
+  const replay = await (await fetch(url(`/api/matches/${matchId}/replay`))).json();
+  const s = newGame(replay.seed, replay.team_size);
+  s.maxTicks = replay.max_ticks;
+  expect(data.frames).toHaveLength(replay.actions.length + 1);
+  expect(new Set(data.map.walls.map(([x, y]: number[]) => `${x},${y}`)), "the same map").toEqual(s.map.walls);
+  const view = () => s.players.map((p) => ({ x: p.x, y: p.y, respawn: p.respawn, carrying: p.carrying }));
+  expect(data.frames[0].players).toEqual(view());
+  replay.actions.forEach((turn: number[], i: number) => {
+    step(s, turn);
+    expect(data.frames[i + 1].players, `turn ${i + 1}`).toEqual(view());
+    expect(data.frames[i + 1].score).toEqual(s.score);
+  });
+  expect(data.frames.at(-1).score).toEqual(over.data.score);
+  expect(data.score).toEqual(over.data.score);
+  expect(stateHash(s)).toBe(replay.hash);
+  expect(JSON.stringify(data)).not.toMatch(/visitor=/);
+}, 30000);
+
+it("refuses a replay page for a match that doesn't exist", async () => {
+  expect((await fetch(url("/matches/999999999"))).status).toBe(404);
+  expect((await fetch(url("/api/matches/999999999/frames"))).status).toBe(404);
+});
+
 it("refuses a replay of a match that doesn't exist", async () => {
   expect((await fetch(url("/api/matches/999999999/replay"))).status).toBe(404);
 });

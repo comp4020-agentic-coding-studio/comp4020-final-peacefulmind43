@@ -4,9 +4,7 @@
 
 (() => {
   const $ = (name) => document.querySelector(`[data-field="${name}"]`);
-  const SVG = "http://www.w3.org/2000/svg";
   const STAY = 0, NORTH = 1, SOUTH = 2, EAST = 3, WEST = 4;
-  const TEAM = ["blue", "red"];
 
   const board = $("board");
   let match = null; // the match's static parts: map, team size
@@ -26,46 +24,13 @@
   // turn arrived (a solo turn resolves in 0.15 s), and walked two steps.
   const HOLD_DELAY = 350;
   let seq = Date.now(); // inputs are numbered; a newer page never reuses an older number
-  const tokens = []; // one SVG group per seat
-  const flagMarks = [];
 
   // --- drawing ----------------------------------------------------------------
 
-  function el(name, attrs, parent) {
-    const node = document.createElementNS(SVG, name);
-    for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, v);
-    if (parent) parent.append(node);
-    return node;
-  }
+  let drawPlayers = () => {}; // set by drawMap, from board.js (shared with the replay page)
 
   function drawMap() {
-    const m = match.map;
-    board.setAttribute("viewBox", `0 0 ${m.width} ${m.height}`);
-    board.replaceChildren();
-    el("rect", { x: 0, y: 0, width: m.width / 2, height: m.height, class: "half blue" }, board);
-    el("rect", { x: m.width / 2, y: 0, width: m.width / 2, height: m.height, class: "half red" }, board);
-    m.bases.forEach((base, team) => {
-      for (const [x, y] of base) el("rect", { x, y, width: 1, height: 1, class: `base ${TEAM[team]}` }, board);
-    });
-    for (const [x, y] of m.walls) el("rect", { x, y, width: 1, height: 1, class: "wall" }, board);
-    tokens.length = 0;
-    flagMarks.length = 0;
-    m.flags.forEach((_, team) => {
-      const g = el("g", { class: `flag ${TEAM[team]}` }, board);
-      el("path", { d: "M0.35 0.2 V0.85 M0.35 0.2 L0.8 0.38 L0.35 0.56 Z" }, g);
-      flagMarks.push(g);
-    });
-    seats.forEach((seat, i) => {
-      const g = el("g", { class: `player ${seat.team}` }, board);
-      el("circle", { cx: 0.5, cy: 0.5, r: 0.36 }, g);
-      const label = el("text", { x: 0.5, y: 0.62, "text-anchor": "middle" }, g);
-      label.textContent = String(i + 1);
-      tokens.push(g);
-    });
-  }
-
-  function place(g, x, y) {
-    g.setAttribute("transform", `translate(${x} ${y})`);
+    drawPlayers = window.CtfBoard.create(board, match.map, seats.map((s) => s.team));
   }
 
   function drawTick(t) {
@@ -76,21 +41,7 @@
     $("score-blue").textContent = t.score[0];
     $("score-red").textContent = t.score[1];
     $("clock").textContent = `${Math.max(0, match.max_ticks - t.tick)} turns left`;
-    const carried = [null, null];
-    t.players.forEach((p, i) => {
-      const g = tokens[i];
-      if (!g) return;
-      g.style.display = p.respawn ? "none" : "";
-      if (!p.respawn) place(g, p.x, p.y);
-      g.classList.toggle("you", i === you);
-      g.classList.toggle("bot", seats[i]?.kind === "bot");
-      g.classList.toggle("carrying", p.carrying);
-      if (p.carrying) carried[seats[i].team === "blue" ? 1 : 0] = p;
-    });
-    match.map.flags.forEach(([x, y], team) => {
-      const c = carried[team];
-      place(flagMarks[team], c ? c.x : x, c ? c.y - 0.3 : y);
-    });
+    drawPlayers(t.players, { you, bots: seats.map((s) => s.kind === "bot") });
     if (you !== null) {
       const p = t.players[you];
       $("you").textContent = `You are ${me}, player ${you + 1} on ${seats[you].team}.` +

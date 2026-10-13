@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Match {{ match_id }} replay · Capture the flag{% endblock %}
+{% block main %}
+<h1>Match {{ match_id }}, played again</h1>
+<p class="lead">Every move of this match was saved. This plays it back exactly, turn by turn.
+  <a href="/me">Your matches</a> · <a href="/">Play</a></p>
+
+<section class="game replay" aria-labelledby="replay-heading" data-match="{{ match_id }}">
+  <h2 id="replay-heading" class="visually-hidden">The replay</h2>
+  <div class="scorebar">
+    <span class="team blue">Blue <strong data-field="score-blue">0</strong></span>
+    <span class="clock" data-field="clock">Loading…</span>
+    <span class="team red"><strong data-field="score-red">0</strong> Red</span>
+  </div>
+  <div class="board-wrap">
+    <div class="board">
+      <svg data-field="board" role="img" aria-label="The map, the players and the flags at this turn" viewBox="0 0 16 10"
+           preserveAspectRatio="xMidYMid meet"></svg>
+    </div>
+  </div>
+  <div class="replay-controls" role="group" aria-label="Replay controls">
+    <button type="button" class="small" data-field="back" aria-label="Back one turn" aria-keyshortcuts="ArrowLeft">◀ Back</button>
+    <button type="button" class="small" data-field="play" aria-keyshortcuts="Space">Play</button>
+    <button type="button" class="small" data-field="next" aria-label="Forward one turn" aria-keyshortcuts="ArrowRight">Next ▶</button>
+    <label>Speed
+      <select data-field="speed">
+        <option value="2">2 turns a second</option>
+        <option value="5" selected>5 turns a second</option>
+        <option value="15">15 turns a second</option>
+      </select>
+    </label>
+  </div>
+  <label class="turn-slider">Turn <span data-field="turn-number">0</span>
+    <input type="range" data-field="turn" min="0" max="0" value="0">
+  </label>
+  <p class="status" data-field="status" aria-live="polite"></p>
+
+  <h3>Players</h3>
+  <ul class="roster" data-field="roster"></ul>
+  <h3>What happened up to this turn</h3>
+  <ol class="moments" data-field="moments"></ol>
+</section>
+<noscript><p>The replay runs in your browser and needs JavaScript. The raw data is at
+  <a href="/api/matches/{{ match_id }}/replay">/api/matches/{{ match_id }}/replay</a>.</p></noscript>
+<script src="{{ asset("board.js") }}" defer></script>
+<script src="{{ asset("replay.js") }}" defer></script>
+{% endblock %}

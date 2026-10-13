@@ -284,6 +284,55 @@ async def api_replay(match_id: int):
     }
 
 
+@app.get("/api/matches/{match_id}/frames")
+async def api_frames(match_id: int):
+    """A finished match turn by turn, for the replay page: the map, who sat
+    where (labels, and each bot's name), and every turn's board and moments,
+    rebuilt from the saved replay by the engine. spec/replay.test.ts checks
+    every frame against the independent engine."""
+    with db.connect() as conn:
+        row = conn.execute(
+            """SELECT m.seed, m.team_size, m.rules_version, m.max_ticks, m.score_blue, m.score_red, m.ended_at, r.actions
+               FROM matches m JOIN replays r ON r.match_id = m.id WHERE m.id = ? AND m.status = 'finished'""",
+            (match_id,),
+        ).fetchone()
+        if row is None:
+            raise HTTPException(404, "No replay for that match.")
+        spans = conn.execute("SELECT seat, visitor_id, from_tick, to_tick FROM seat_spans WHERE match_id = ? ORDER BY from_tick",
+                             (match_id,)).fetchall()
+    if row["rules_version"] != engine.RULES_VERSION:
+        raise HTTPException(404, "That match was played under older rules, so it can't be replayed.")
+    state = engine.new_game(row["seed"], row["team_size"])
+    state.max_ticks = row["max_ticks"]
+    view = lambda: [{"x": p.x, "y": p.y, "respawn": p.respawn, "carrying": p.carrying} for p in state.players]
+    frames = [{"tick": 0, "score": [0, 0], "players": view(), "events": []}]
+    for actions in json.loads(row["actions"]):
+        events = engine.step(state, actions)
+        frames.append({"tick": state.tick, "score": list(state.score), "players": view(),
+                       "events": [[name, seat] for name, seat in events if name in ("tag", "pickup", "capture")]})
+    m = state.map
+    seats = [{"seat": i, "team": "blue" if i < row["team_size"] else "red",
+              "people": [{"label": activity.visitor_label(s["visitor_id"]), "from": s["from_tick"], "to": s["to_tick"]}
+                         for s in spans if s["seat"] == i]}
+             for i in range(2 * row["team_size"])]
+    return {
+        "id": match_id, "team_size": row["team_size"], "score": [row["score_blue"], row["score_red"]],
+        "ended_at": row["ended_at"], "seats": seats,
+        "map": {"width": m.width, "height": m.height, "walls": sorted([x, y] for x, y in m.walls),
+                "flags": [list(f) for f in m.flags], "bases": [[list(c) for c in base] for base in m.bases]},
+        "frames": frames,
+    }
+
+
+@app.get("/matches/{match_id}", response_class=HTMLResponse)
+async def match_page(request: Request, match_id: int):
+    with db.connect() as conn:
+        row = conn.execute("SELECT id, status FROM matches WHERE id = ?", (match_id,)).fetchone()
+    if row is None or row["status"] != "finished":
+        raise HTTPException(404, "No finished match with that number.")
+    return templates.TemplateResponse(request, "match.html", {"match_id": match_id})
+
+
 @app.get("/api/matches/{match_id}/choices")
 async def api_choices(match_id: int):
     """Every person's choice in a match: who (public label), seat, turn, move, when.
