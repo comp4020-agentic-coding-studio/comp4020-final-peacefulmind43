@@ -445,3 +445,60 @@ Three small fixes, each with a spec check that failed first:
 - **The README was 604 words**, over the 600 limit. Tighter wording brings it
   to 593, with no claim, heading, source or limit dropped
   ([`32a72c9`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-peacefulmind43/commit/32a72c9)).
+
+## 2026-10-13: a blind study of which bot is the better teammate
+
+The README says a bot can be a good teammate for people, but the only
+evidence was bots against bots: cur4 beats the scripted bot. That shows the
+bot plays well, not that people are glad to have it on their team. So people
+now rate it, without knowing which bot it is (ADR 0017). In the shared arena,
+each match draws a bot for each team from a list (scripted and cur4 for now;
+a new bot is added by name). Your bot teammate shows as "Bot A" or "Bot B",
+with a letter drawn each match, so a letter tells you nothing. When the match
+ends you answer "Was your bot teammate helpful?" 1 to 5, or skip, and then
+see which bot it was. The server takes one answer per person per match, only
+from someone who sat on that team. Opponent bots are still named, and bots
+still choose only from the board shown when the turn opened: the study
+changes which bot plays, never what it sees. The CLAUDE.md rule "never hide
+which bot is playing" now says this, and the game page and the README's
+limits tell people before they play.
+
+Ratings alone can't tell a helpful bot from one that scores everything
+itself, so the study also counts, for each team, captures by people and by
+bots. `/study` shows both, with n. It shows a mean and a 95% interval only
+from 10 ratings up, and says the interval is too narrow, since one person
+can rate many matches
+([`80d7c5a`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-peacefulmind43/commit/80d7c5a)).
+
+## 2026-10-13: your matches, and replays you can watch
+
+A marker comes back the next day to see that the app kept what they did.
+Before, nothing on screen showed it. `/me` now lists your own finished
+matches, found by your cookie on the server: when, your team, the score, who
+played with you (labels only), your bot teammate and your rating, with a
+late answer if you missed the question
+([`423238e`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-peacefulmind43/commit/423238e)). Each links to `/matches/{id}`, which plays the
+match back with back, play, next, a slider and three speeds, by keyboard too.
+The board drawing moved into `board.js`, so the game and the replay draw the
+same way. The server rebuilds each turn from the saved moves, and the spec
+checks every frame against the TypeScript engine, down to the saved final
+score ([`ba75d0b`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-peacefulmind43/commit/ba75d0b)).
+
+## 2026-10-13: two browsers, a phone and a slow link
+
+I drove two Chrome profiles at the marking viewports, 1920×1080 and 390×844,
+one of them on a slow-3G link (400 ms latency, about 400 kbit/s). The slow
+page took about 6 seconds to load, then played: its moves landed, turns
+waited for it, and both people got the question after the match and saw
+the bot revealed. Two real problems, both on the phone:
+
+- **The move pad was off the screen.** It started at 935 px on an 844 px
+  screen, under the introduction, so you had to scroll down to play. On
+  narrow screens the game now comes right after the heading, and the pad
+  ends at 720 px.
+- **Your matches scrolled sideways**, 408 px in 390. On narrow screens each
+  match is now a labelled card.
+
+([`1068ce1`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-peacefulmind43/commit/1068ce1)). The accessibility check now covers `/study`,
+`/me` and a replay page. The layout checks themselves need a real browser,
+which the spec doesn't run, so they stay a manual step for now.
