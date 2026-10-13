@@ -502,3 +502,16 @@ the bot revealed. Two real problems, both on the phone:
 ([`1068ce1`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-peacefulmind43/commit/1068ce1)). The accessibility check now covers `/study`,
 `/me` and a replay page. The layout checks themselves need a real browser,
 which the spec doesn't run, so they stay a manual step for now.
+
+## 2026-10-13: no ratings, only behaviour
+
+I decided to remove the rating question. At crits, my classmates mostly play
+a match or two quickly and without care, so their ratings would be noise. I
+also thought about letting only me rate, blinded, but that needs a sign-in
+page, a signed cookie and rules for shared teams, all for one rater who knows
+the project. It is not worth it. So now nobody is blinded and nobody is asked:
+every bot seat shows its real name again. The random choice of the teammate
+bot (scripted or cur4) stays and is saved for every match, so the behaviour
+of everyone who plays is the evidence. `/study` now shows, for each bot, the
+captures by people and by bots on its teams, and for each person, their own
+captures and their bot teammate's, with n on the page (ADR 0019).
