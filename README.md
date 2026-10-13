@@ -28,8 +28,7 @@ means:
    second.
 4. **A bot is a teammate, not the star.** The trained bot is rewarded for its
    team scoring, not for scoring itself.
-5. **It is honest about which bot is which.** Every bot seat says whether a
-   scripted or a trained bot is playing.
+5. **It is honest about which bot is which.** Every bot seat is named.
 
 ## Checked and judged
 
@@ -66,7 +65,9 @@ happens.
 
 ## Limits
 
-- The trained bot so far learns against scripted bots, not people, so
-  it may play differently with people than it does in tests.
-- Waiting for people helps, but a choice is still needed within two seconds,
-  which some players will find too short.
+- The trained bot learns against scripted bots, not people, so it may play
+  differently with people.
+- A choice is still needed within two seconds, which some players will find
+  too short.
+- Your bot teammate shows as "Bot A" or "Bot B" until you rate it, so its
+  name can't sway your rating (`/study`).

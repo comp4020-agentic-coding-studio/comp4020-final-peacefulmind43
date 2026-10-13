@@ -18,7 +18,7 @@ import time
 from dataclasses import dataclass, field
 
 from ..activity import visitor_label as label
-from . import bots, engine, policy
+from . import bots, engine, policy, study
 
 CHECK_HZ = 20  # how often arenas are checked for a turn that is ready
 CHECK_PERIOD = 1 / CHECK_HZ
@@ -100,6 +100,10 @@ class Arena:
     replay: list[list[int]] = field(default_factory=list)  # every turn's actions, for ADR 0014
     tally: dict = field(default_factory=dict)  # (seat, "pickup"/"capture"/"tag") -> count this match, for /log
     paused_by: str | None = None  # the visitor who paused the match (ADR 0015)
+    study: bool = False  # draw blinded teammate bots each match (ADR 0017): the shared arena, or a private one asked for it
+    draw: dict | None = None  # this match's draw: {"seed", "bots": [blue, red], "letters": {bot: letter}}
+    blinded: list = field(default_factory=lambda: [False, False])  # per team: its bots are the drawn, blinded bot
+    bot_turns: list = field(default_factory=lambda: [0, 0])  # per team: turns a blinded bot played on it
 
     # --- what pages are told -------------------------------------------------
 
@@ -113,15 +117,37 @@ class Arena:
                     "kind": "human" if s.human else "bot",
                     "label": label(s.owner) if s.human else "Bot",
                     "covering": label(s.owner) if s.owner and s.covering else None,
-                    # which bot plays the seat, so people can see what they're up against
+                    # which bot plays the seat: its name, or "Bot A"/"Bot B" while blinded (ADR 0017)
                     "bot": None if s.human else self.bot_name(s.team),
+                    "blind": not s.human and self.blinded[s.team],
                 }
             )
         return out
 
     def bot_name(self, team: int) -> str:
+        """The name shown for a team's bots. A blinded bot shows only its letter
+        until the match is over and the person has rated it (ADR 0017)."""
+        if self.blinded[team]:
+            return f"Bot {self.draw['letters'][self.draw['bots'][team]]}"
         bot = self.team_bots[team]
         return bot.name if bot else "scripted"
+
+    def blind_team(self, team: int) -> None:
+        """A person sits on this team: in a study match, its empty seats are
+        filled from now on by the bot drawn for it, shown only by its letter."""
+        if self.draw is None or self.blinded[team]:
+            return
+        bots_ = list(self.team_bots)
+        bots_[team] = study.player(self.draw["bots"][team])
+        self.team_bots = tuple(bots_)
+        self.blinded[team] = True
+
+    def study_rows(self) -> list[tuple[int, str, str, int]]:
+        """Teams whose person had a blinded bot teammate: (team, bot, letter, seed)."""
+        if self.draw is None:
+            return []
+        return [(t, self.draw["bots"][t], self.draw["letters"][self.draw["bots"][t]], self.draw["seed"])
+                for t in (0, 1) if self.blinded[t] and self.bot_turns[t] > 0]
 
     def match_view(self) -> dict:
         m = self.state.map
@@ -224,6 +250,7 @@ class Hall:
         self.arenas: dict[str, Arena] = {}
         self.store = store  # saves matches off the tick (see app/game/store.py)
         self.on_log = None  # set by the app: (kind, visitor_id, detail) for the activity log
+        self.teammate_bots = list(study.TEAMMATE_BOTS)  # the bots a person may get as a blinded teammate
 
     # --- arenas and matches --------------------------------------------------
 
@@ -237,6 +264,7 @@ class Hall:
         if len(self.arenas) >= MAX_ARENAS and arena_id not in self.arenas:
             raise RuntimeError("too many arenas")
         arena = Arena(arena_id, kind, team_size, seed, **options)
+        arena.study = arena.study or kind == "shared"
         arena.team_bots = (self.bot, self.bot)
         self.arenas[arena_id] = arena
         return arena
@@ -266,6 +294,12 @@ class Hall:
         arena.replay = []
         arena.tally = {}
         arena.paused_by = None
+        if arena.study:  # ADR 0017: a fresh, recorded draw each match; the deployed bot until a person sits
+            draw_seed = (arena.seed * 7919 + arena.matches_played) % 2**32 if arena.kind == "private" else secrets.randbelow(2**32)
+            arena.draw = study.draw(draw_seed, self.teammate_bots)
+            arena.team_bots = (self.bot, self.bot)
+            arena.blinded = [False, False]
+            arena.bot_turns = [0, 0]
         arena.break_until = 0.0
         arena.turn_opened = time.monotonic()
         arena.match_id = None if arena.kind == "watch" else self.store.start(arena)
@@ -279,9 +313,12 @@ class Hall:
         for i, seat in enumerate(arena.seats):
             if seat.owner:
                 arena.spans.append((i, seat.owner, seat.since_tick, s.tick))
+        rows = arena.study_rows()
         if arena.match_id is not None:
-            self.store.finish(arena.match_id, s, list(arena.spans), list(arena.replay))
-        arena.tell_all("over", {"match_id": arena.match_id, "score": list(s.score)})
+            self.store.finish(arena.match_id, s, list(arena.spans), list(arena.replay), rows)
+        # teams that may rate their blinded bot teammate (the server checks who may)
+        arena.tell_all("over", {"match_id": arena.match_id, "score": list(s.score),
+                                "rate": ["blue" if t == 0 else "red" for t, *_ in rows]})
         if self.on_log and arena.match_id is not None:  # a watch match nobody played isn't logged
             self.on_log("match_end", None, {**arena.where(), "score": f"{s.score[0]}-{s.score[1]}"})
         arena.break_until = now + arena.break_seconds
@@ -310,6 +347,10 @@ class Hall:
                 if seat.owner:
                     arena.spans.append((i, seat.owner, seat.since_tick, arena.state.tick))
                 arena.seats[i] = Seat(team=team, owner=visitor_id, last_input=time.monotonic(), since_tick=arena.state.tick)
+                if arena.draw is not None and not arena.blinded[team]:
+                    arena.blind_team(team)
+                    if announce:
+                        arena.seats_changed()
                 if announce:
                     arena.seats_changed()
                     arena.tell_all("moment", {"kind": "join", "seat": i, "label": label(visitor_id)})
@@ -549,6 +590,9 @@ class Hall:
             else:
                 actions.append(bots.scripted_action(s, i))
             seat.choice = None
+        for t in (0, 1):  # a turn in which a blinded bot played beside a person on its team
+            if arena.blinded[t] and any(not x.human for x in arena.seats if x.team == t):
+                arena.bot_turns[t] += 1
         events = engine.step(s, actions)
         arena.replay.append(actions)
         arena.turn_opened = now

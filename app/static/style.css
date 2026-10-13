@@ -180,3 +180,8 @@ svg .player, svg .flag { transition: transform 0.2s linear; }
 .countdown span[data-field="countdown"] { font-variant-numeric: tabular-nums; font-weight: 600; min-width: 9.5rem; }
 .timer-bar { flex: 1; height: 0.5rem; background: var(--line); border-radius: 0.25rem; overflow: hidden; }
 .timer-bar span { display: block; height: 100%; width: 100%; background: #f0b400; transition: width 0.1s linear; }
+.rate fieldset { margin-top: 0.5rem; }
+.rate-options { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 0.3rem; }
+.rate-options button { min-width: 2.75rem; min-height: 2.75rem; }
+button.secondary { background: var(--muted); }
+.reveal { font-weight: 600; }

@@ -118,7 +118,8 @@
       ...seats.map((s, i) => {
         const li = document.createElement("li");
         li.className = `${s.team}${i === you ? " me" : ""}`;
-        const kind = s.bot === "scripted" ? "scripted bot" : s.bot ? `trained bot (${s.bot})` : "bot";
+        // a blinded teammate shows only its letter until you have rated it (ADR 0017)
+        const kind = s.blind ? s.bot : s.bot === "scripted" ? "scripted bot" : s.bot ? `trained bot (${s.bot})` : "bot";
         const who = s.kind === "human" ? s.label : s.covering ? `${kind}, covering for ${s.covering}` : kind[0].toUpperCase() + kind.slice(1);
         const ready = s.kind === "human" ? (chosen.has(i) ? " ✓ chosen" : " … choosing") : "";
         li.textContent = `${i + 1}. ${who}${i === you ? " (you)" : ""}${ready}`;
@@ -230,8 +231,49 @@
     }[m.kind] ?? m.kind;
     moment(`${who} ${what}`);
   });
+  // --- rating your blinded bot teammate (ADR 0017) ---------------------------
+  const rateForm = $("rate");
+  let rateMatch = null;
+  function askRating(matchId) {
+    rateMatch = matchId;
+    $("reveal").hidden = true;
+    rateForm.hidden = false;
+    for (const b of rateForm.querySelectorAll("button")) b.disabled = false;
+    rateForm.querySelector("button").focus({ preventScroll: true }); // the board needs no keys now: the match is over
+  }
+  rateForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const value = e.submitter?.value;
+    if (!value || rateMatch === null) return;
+    for (const b of rateForm.querySelectorAll("button")) b.disabled = true;
+    const score = value === "skip" ? null : Number(value);
+    let res;
+    // the finished match is saved in a thread, so the server may not know you played in it for a moment
+    for (let i = 0; i < 5; i++) {
+      res = await fetch(`/api/matches/${rateMatch}/rating`, {
+        method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ score }),
+      }).catch(() => null);
+      if (res && res.status !== 403) break;
+      await new Promise((r) => setTimeout(r, 600));
+    }
+    const out = $("reveal");
+    if (res?.ok) {
+      const r = await res.json();
+      out.textContent = `${score === null ? "Skipped." : `Thanks: you rated it ${score} of 5.`} Bot ${r.letter} was ${r.text}.`;
+    } else if (res?.status === 409) {
+      out.textContent = "You have already answered for that match.";
+    } else {
+      out.textContent = "That didn't go through. You can rate it later on Your matches.";
+    }
+    rateForm.hidden = true;
+    out.hidden = false;
+    rateMatch = null;
+  });
+
   stream.addEventListener("over", (e) => {
-    const [b, r] = JSON.parse(e.data).score;
+    const over = JSON.parse(e.data);
+    if (you !== null && seats[you] && (over.rate || []).includes(seats[you].team)) askRating(over.match_id);
+    const [b, r] = over.score;
     const result = b === r ? "a draw" : b > r ? "blue wins" : "red wins";
     notice(`Match over, ${b}–${r}: ${result}.`);
     moment(`Match over, ${b}–${r}.`);

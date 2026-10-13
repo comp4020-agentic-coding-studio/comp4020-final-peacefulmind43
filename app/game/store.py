@@ -24,16 +24,17 @@ class Store:
             )
             return cur.lastrowid
 
-    def finish(self, match_id: int, state: engine.State, spans: list, replay: list | None = None) -> None:
+    def finish(self, match_id: int, state: engine.State, spans: list, replay: list | None = None,
+               study: list | None = None) -> None:
         score, ticks, final = list(state.score), state.tick, engine.state_hash(state)
-        args = (match_id, score, ticks, spans, replay or [], final)
+        args = (match_id, score, ticks, spans, replay or [], final, study or [])
         try:
             asyncio.get_running_loop().run_in_executor(None, self._finish, *args)
         except RuntimeError:  # no event loop (tests, scripts): save directly
             self._finish(*args)
 
     @staticmethod
-    def _finish(match_id: int, score: list[int], ticks: int, spans: list, replay: list, final: int) -> None:
+    def _finish(match_id: int, score: list[int], ticks: int, spans: list, replay: list, final: int, study: list) -> None:
         with db.connect() as conn:
             conn.execute(
                 """UPDATE matches SET status = 'finished', score_blue = ?, score_red = ?, ticks = ?, ended_at = ?
@@ -47,6 +48,10 @@ class Store:
             conn.execute(
                 "INSERT INTO replays (match_id, actions, hash) VALUES (?, ?, ?)",
                 (match_id, json.dumps(replay, separators=(",", ":")), final),
+            )
+            conn.executemany(  # which bot each team's person had as a blinded teammate (ADR 0017)
+                "INSERT INTO match_study (match_id, team, bot, letter, seed) VALUES (?, ?, ?, ?, ?)",
+                [(match_id, team, bot, letter, seed) for team, bot, letter, seed in study],
             )
 
     @staticmethod

@@ -19,7 +19,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from . import activity, db
-from .game import engine
+from .game import engine, study
 from .game.arena import Hall
 from .game.store import Store
 
@@ -231,6 +231,9 @@ async def create_arena(request: Request):
     team_size, seed = body.get("team_size"), body.get("seed")
     max_ticks, break_seconds = body.get("max_ticks", engine.MAX_TICKS), body.get("break_seconds", 10)
     deadline = body.get("deadline_seconds", 2.0)
+    blind = body.get("study", False)  # draw blinded teammate bots, as the shared arena does (ADR 0017)
+    if not isinstance(blind, bool):
+        raise HTTPException(400, "study must be true or false.")
     if team_size not in engine.SIZES or not isinstance(seed, int) or not 0 <= seed < 2**32:
         raise HTTPException(400, "Send team_size (2 or 3) and seed (0 to 2^32 - 1).")
     if not isinstance(max_ticks, int) or not 1 <= max_ticks <= engine.MAX_TICKS or not 0 <= break_seconds <= 60:
@@ -240,7 +243,7 @@ async def create_arena(request: Request):
     try:
         arena = hall.open_arena(
             f"p-{secrets.token_urlsafe(6)}", "private", team_size, seed,
-            max_ticks=max_ticks, break_seconds=break_seconds, deadline=float(deadline),
+            max_ticks=max_ticks, break_seconds=break_seconds, deadline=float(deadline), study=blind,
         )
     except RuntimeError:
         raise HTTPException(503, "Too many arenas are open. Try again in a minute.")
@@ -313,6 +316,88 @@ async def api_match(match_id: int):
         "seed": row["seed"],
         "rules_version": row["rules_version"],
     }
+
+
+# --- the blind teammate study (ADR 0017) --------------------------------------
+
+
+def played_on(conn, match_id: int, visitor_id: str) -> int | None:
+    """The team the visitor held a seat on in a finished match, or None."""
+    row = conn.execute(
+        """SELECT s.seat, m.team_size FROM seat_spans s JOIN matches m ON m.id = s.match_id
+           WHERE s.match_id = ? AND s.visitor_id = ? ORDER BY s.to_tick - s.from_tick DESC LIMIT 1""",
+        (match_id, visitor_id),
+    ).fetchone()
+    return None if row is None else (0 if row["seat"] < row["team_size"] else 1)
+
+
+@app.post("/api/matches/{match_id}/rating")
+async def api_rate(match_id: int, request: Request):
+    """Was your bot teammate helpful? 1-5, or null to skip. Only someone who
+    held a seat on a team with a blinded bot in that match may answer, once.
+    The answer reveals which bot it was."""
+    body = await json_object(request)
+    score = body.get("score")
+    if not (score is None or (isinstance(score, int) and not isinstance(score, bool) and 1 <= score <= 5)):
+        raise HTTPException(400, "Send score: 1 to 5, or null to skip.")
+    me = request.cookies.get(COOKIE)
+    if not me:
+        raise HTTPException(403, "Only people who played in that match can rate it.")
+    with db.connect() as conn:
+        team = played_on(conn, match_id, me)
+        bot = None if team is None else conn.execute(
+            "SELECT bot, letter FROM match_study WHERE match_id = ? AND team = ?", (match_id, team)
+        ).fetchone()
+        if bot is None:
+            raise HTTPException(403, "Only people who played beside a blinded bot in that match can rate it.")
+        done = conn.execute("INSERT OR IGNORE INTO study_ratings (match_id, visitor_id, team, score, at) VALUES (?, ?, ?, ?, ?)",
+                            (match_id, me, team, score, int(time.time()))).rowcount
+    if not done:
+        raise HTTPException(409, "You have already answered for that match.")
+    with db.connect() as conn:  # the log says that they answered, not what: others may still be rating
+        activity.record(conn, "rate", me, {"match": match_id, "team": "blue" if team == 0 else "red"})
+    return {"score": score, "letter": bot["letter"], "bot": bot["bot"], "text": study.describe(bot["bot"])}
+
+
+def capture_shares(conn) -> dict[tuple[int, int], tuple[int, int]]:
+    """(match, team) -> (captures by people, captures by bots), from the activity log."""
+    rows = conn.execute(
+        """SELECT json_extract(detail, '$.match') AS match_id, json_extract(detail, '$.team') AS team,
+                  sum(visitor_id IS NOT NULL) AS people, sum(visitor_id IS NULL) AS bots
+           FROM events WHERE kind = 'capture' AND json_extract(detail, '$.match') IN (SELECT match_id FROM match_study)
+           GROUP BY 1, 2"""
+    ).fetchall()
+    return {(r["match_id"], 0 if r["team"] == "blue" else 1): (r["people"], r["bots"]) for r in rows}
+
+
+def study_results(conn) -> list[dict]:
+    shares = capture_shares(conn)
+    out = []
+    for name in study.TEAMMATE_BOTS:
+        scores = [r["score"] for r in conn.execute(
+            """SELECT r.score FROM study_ratings r JOIN match_study s ON s.match_id = r.match_id AND s.team = r.team
+               WHERE s.bot = ?""", (name,))]
+        rated = [x for x in scores if x is not None]
+        teams = conn.execute("SELECT match_id, team FROM match_study WHERE bot = ?", (name,)).fetchall()
+        people = sum(shares.get((t["match_id"], t["team"]), (0, 0))[0] for t in teams)
+        bots_ = sum(shares.get((t["match_id"], t["team"]), (0, 0))[1] for t in teams)
+        out.append({"bot": name, "text": study.describe(name), "matches": len(teams), "ratings": len(rated),
+                    "skipped": len(scores) - len(rated), "counts": {str(k): rated.count(k) for k in range(1, 6)},
+                    **study.mean_interval(rated), "captures": {"people": people, "bots": bots_}})
+    return out
+
+
+@app.get("/api/study")
+async def api_study():
+    with db.connect() as conn:
+        return {"bots": study_results(conn)}
+
+
+@app.get("/study", response_class=HTMLResponse)
+async def study_page(request: Request):
+    with db.connect() as conn:
+        results = study_results(conn)
+    return templates.TemplateResponse(request, "study.html", {"results": results, "min_n": study.MIN_N})
 
 
 # --- the log (ADR 0006) -----------------------------------------------------
