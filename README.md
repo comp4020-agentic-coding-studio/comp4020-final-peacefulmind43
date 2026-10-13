@@ -69,5 +69,5 @@ happens.
   differently with people.
 - A choice is still needed within two seconds, which some players will find
   too short.
-- Your bot teammate shows as "Bot A" or "Bot B" until you rate it, so its
-  name can't sway your rating (`/study`).
+- Your bot teammate is drawn at random each match; `/study` compares the bots
+  by who scores, not by ratings.

@@ -21,19 +21,7 @@
       <td data-label="Team">{{ m.team | capitalize }}</td>
       <td data-label="Score">{{ m.score[0] }}–{{ m.score[1] }}, you {{ m.result }}</td>
       <td data-label="Teammates">{{ m.teammates | join(", ") if m.teammates else "only bots" }}</td>
-      <td data-label="Bot teammate">{% if not m.bot_teammate %}–{% elif m.bot_teammate.rated %}Bot {{ m.bot_teammate.letter }} was
-        {{ "the scripted bot" if m.bot_teammate.bot == "scripted" else "the trained bot (" ~ m.bot_teammate.bot ~ ")" }};
-        {{ "you skipped" if m.bot_teammate.score is none else "you rated it " ~ m.bot_teammate.score ~ " of 5" }}
-        {% else %}Bot {{ m.bot_teammate.letter }}, not rated yet
-        <form class="rate-later" data-match="{{ m.id }}">
-          <label class="visually-hidden" for="rate-{{ m.id }}">Was Bot {{ m.bot_teammate.letter }} helpful in match {{ m.id }}?</label>
-          <select id="rate-{{ m.id }}" name="score">
-            <option value="">Helpful? 1–5</option>
-            {% for n in range(5, 0, -1) %}<option value="{{ n }}">{{ n }}</option>{% endfor %}
-            <option value="skip">Skip</option>
-          </select>
-          <button type="submit" class="small">Answer</button>
-        </form>{% endif %}</td>
+      <td data-label="Bot teammate">{% if not m.bot_teammate %}–{% elif m.bot_teammate == "scripted" %}The scripted bot{% else %}The trained bot ({{ m.bot_teammate }}){% endif %}</td>
       <td data-label="Replay"><a href="{{ m.replay }}">Watch match {{ m.id }}</a></td>
     </tr>
     {% endfor %}
@@ -44,20 +32,4 @@
 <p data-field="empty">No finished matches yet. <a href="/">Play one</a>: when it ends, it shows here, and stays
   here when you come back tomorrow.</p>
 {% endif %}
-<script>
-  // answer a rating you missed after the match; the server checks you played (ADR 0017)
-  for (const form of document.querySelectorAll(".rate-later")) {
-    form.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const value = form.score.value;
-      if (!value) return;
-      const res = await fetch(`/api/matches/${form.dataset.match}/rating`, {
-        method: "POST", headers: { "content-type": "application/json" },
-        body: JSON.stringify({ score: value === "skip" ? null : Number(value) }),
-      });
-      if (res.ok) location.reload();
-      else form.replaceWith(Object.assign(document.createElement("span"), { textContent: "Already answered." }));
-    });
-  }
-</script>
 {% endblock %}

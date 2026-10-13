@@ -367,7 +367,7 @@ async def api_match(match_id: int):
     }
 
 
-# --- the blind teammate study (ADR 0017) --------------------------------------
+# --- which bot is the better teammate (ADR 0017, 0019) ------------------------
 
 
 def played_on(conn, match_id: int, visitor_id: str) -> int | None:
@@ -380,73 +380,61 @@ def played_on(conn, match_id: int, visitor_id: str) -> int | None:
     return None if row is None else (0 if row["seat"] < row["team_size"] else 1)
 
 
-@app.post("/api/matches/{match_id}/rating")
-async def api_rate(match_id: int, request: Request):
-    """Was your bot teammate helpful? 1-5, or null to skip. Only someone who
-    held a seat on a team with a blinded bot in that match may answer, once.
-    The answer reveals which bot it was."""
-    body = await json_object(request)
-    score = body.get("score")
-    if not (score is None or (isinstance(score, int) and not isinstance(score, bool) and 1 <= score <= 5)):
-        raise HTTPException(400, "Send score: 1 to 5, or null to skip.")
-    me = request.cookies.get(COOKIE)
-    if not me:
-        raise HTTPException(403, "Only people who played in that match can rate it.")
-    with db.connect() as conn:
-        team = played_on(conn, match_id, me)
-        bot = None if team is None else conn.execute(
-            "SELECT bot, letter FROM match_study WHERE match_id = ? AND team = ?", (match_id, team)
-        ).fetchone()
-        if bot is None:
-            raise HTTPException(403, "Only people who played beside a blinded bot in that match can rate it.")
-        done = conn.execute("INSERT OR IGNORE INTO study_ratings (match_id, visitor_id, team, score, at) VALUES (?, ?, ?, ?, ?)",
-                            (match_id, me, team, score, int(time.time()))).rowcount
-    if not done:
-        raise HTTPException(409, "You have already answered for that match.")
-    with db.connect() as conn:  # the log says that they answered, not what: others may still be rating
-        activity.record(conn, "rate", me, {"match": match_id, "team": "blue" if team == 0 else "red"})
-    return {"score": score, "letter": bot["letter"], "bot": bot["bot"], "text": study.describe(bot["bot"])}
-
-
-def capture_shares(conn) -> dict[tuple[int, int], tuple[int, int]]:
-    """(match, team) -> (captures by people, captures by bots), from the activity log."""
-    rows = conn.execute(
-        """SELECT json_extract(detail, '$.match') AS match_id, json_extract(detail, '$.team') AS team,
-                  sum(visitor_id IS NOT NULL) AS people, sum(visitor_id IS NULL) AS bots
-           FROM events WHERE kind = 'capture' AND json_extract(detail, '$.match') IN (SELECT match_id FROM match_study)
-           GROUP BY 1, 2"""
+def study_captures(conn) -> list:
+    """Every capture in a match with a drawn bot teammate: match, team, and
+    who scored (a visitor, or None for a bot), from the activity log."""
+    return conn.execute(
+        """SELECT json_extract(detail, '$.match') AS match_id,
+                  CASE json_extract(detail, '$.team') WHEN 'blue' THEN 0 ELSE 1 END AS team, visitor_id
+           FROM events WHERE kind = 'capture' AND json_extract(detail, '$.match') IN (SELECT match_id FROM match_study)"""
     ).fetchall()
-    return {(r["match_id"], 0 if r["team"] == "blue" else 1): (r["people"], r["bots"]) for r in rows}
 
 
-def study_results(conn) -> list[dict]:
-    shares = capture_shares(conn)
-    out = []
+def study_results(conn) -> dict:
+    """Behaviour only (ADR 0019): for each teammate bot, how many matches and
+    people, and who scored on those teams; and for each person, their own
+    captures against their bot teammate's."""
+    caps = study_captures(conn)
+    teams = conn.execute(
+        """SELECT st.match_id, st.team, st.bot, s.visitor_id
+           FROM match_study st JOIN matches m ON m.id = st.match_id
+           JOIN seat_spans s ON s.match_id = st.match_id
+             AND (CASE WHEN s.seat < m.team_size THEN 0 ELSE 1 END) = st.team
+           GROUP BY st.match_id, st.team, s.visitor_id"""
+    ).fetchall()
+    bots_out = []
     for name in study.TEAMMATE_BOTS:
-        scores = [r["score"] for r in conn.execute(
-            """SELECT r.score FROM study_ratings r JOIN match_study s ON s.match_id = r.match_id AND s.team = r.team
-               WHERE s.bot = ?""", (name,))]
-        rated = [x for x in scores if x is not None]
-        teams = conn.execute("SELECT match_id, team FROM match_study WHERE bot = ?", (name,)).fetchall()
-        people = sum(shares.get((t["match_id"], t["team"]), (0, 0))[0] for t in teams)
-        bots_ = sum(shares.get((t["match_id"], t["team"]), (0, 0))[1] for t in teams)
-        out.append({"bot": name, "text": study.describe(name), "matches": len(teams), "ratings": len(rated),
-                    "skipped": len(scores) - len(rated), "counts": {str(k): rated.count(k) for k in range(1, 6)},
-                    **study.mean_interval(rated), "captures": {"people": people, "bots": bots_}})
-    return out
+        mine = conn.execute("SELECT match_id, team FROM match_study WHERE bot = ?", (name,)).fetchall()
+        keys = {(t["match_id"], t["team"]) for t in mine}
+        people = sum(1 for c in caps if (c["match_id"], c["team"]) in keys and c["visitor_id"])
+        bots_ = sum(1 for c in caps if (c["match_id"], c["team"]) in keys and not c["visitor_id"])
+        visitors = {t["visitor_id"] for t in teams if t["bot"] == name}
+        bots_out.append({"bot": name, "text": study.describe(name), "matches": len(keys), "people": len(visitors),
+                         "captures": {"people": people, "bots": bots_}})
+    per_person: dict[tuple[str, str], dict] = {}
+    for t in teams:
+        row = per_person.setdefault((t["visitor_id"], t["bot"]), {"matches": 0, "own_captures": 0, "bot_captures": 0})
+        row["matches"] += 1
+        row["own_captures"] += sum(1 for c in caps if (c["match_id"], c["team"], c["visitor_id"]) == (t["match_id"], t["team"], t["visitor_id"]))
+        row["bot_captures"] += sum(1 for c in caps if (c["match_id"], c["team"]) == (t["match_id"], t["team"]) and not c["visitor_id"])
+    people_out = sorted(
+        ({"label": activity.visitor_label(v), "bot": b, **row} for (v, b), row in per_person.items()),
+        key=lambda r: (-r["matches"], r["label"], r["bot"]),
+    )
+    return {"bots": bots_out, "people": people_out}
 
 
 @app.get("/api/study")
 async def api_study():
     with db.connect() as conn:
-        return {"bots": study_results(conn)}
+        return study_results(conn)
 
 
 @app.get("/study", response_class=HTMLResponse)
 async def study_page(request: Request):
     with db.connect() as conn:
         results = study_results(conn)
-    return templates.TemplateResponse(request, "study.html", {"results": results, "min_n": study.MIN_N})
+    return templates.TemplateResponse(request, "study.html", {"results": results})
 
 
 # --- your matches -------------------------------------------------------------
@@ -454,7 +442,7 @@ async def study_page(request: Request):
 
 def my_matches(conn, visitor_id: str, limit: int = 50) -> list[dict]:
     """The visitor's own finished matches, newest first: when, team, score,
-    who else played (labels only), their rating, and the replay."""
+    who else played (labels only), their bot teammate, and the replay."""
     rows = conn.execute(
         """SELECT m.id, m.ended_at, m.score_blue, m.score_red, m.team_size, m.status,
                   min(s.seat) AS seat, sum(s.to_tick - s.from_tick) AS turns
@@ -472,18 +460,15 @@ def my_matches(conn, visitor_id: str, limit: int = 50) -> list[dict]:
         ).fetchall()
         mates = sorted({activity.visitor_label(o["visitor_id"]) for o in others if (o["seat"] < r["team_size"]) == (team == 0)})
         rivals = sorted({activity.visitor_label(o["visitor_id"]) for o in others if (o["seat"] < r["team_size"]) != (team == 0)})
-        study_row = conn.execute("SELECT bot, letter FROM match_study WHERE match_id = ? AND team = ?", (r["id"], team)).fetchone()
-        rating = conn.execute("SELECT score FROM study_ratings WHERE match_id = ? AND visitor_id = ?", (r["id"], visitor_id)).fetchone()
+        study_row = conn.execute("SELECT bot FROM match_study WHERE match_id = ? AND team = ?", (r["id"], team)).fetchone()
         mine, theirs = (r["score_blue"], r["score_red"]) if team == 0 else (r["score_red"], r["score_blue"])
         out.append({
             "id": r["id"], "ended_at": r["ended_at"], "team": "blue" if team == 0 else "red",
             "score": [r["score_blue"], r["score_red"]],
             "result": "won" if mine > theirs else "lost" if mine < theirs else "drew",
             "teammates": mates, "opponents": rivals,
-            # the bot teammate is revealed only once you have answered (ADR 0017)
-            "bot_teammate": None if study_row is None else (
-                {"letter": study_row["letter"], "bot": study_row["bot"] if rating else None, "rated": rating is not None,
-                 "score": rating["score"] if rating else None}),
+            # the bot drawn for your team (ADR 0017, 0019), named as it was during the match
+            "bot_teammate": None if study_row is None else study_row["bot"],
             "replay": f"/matches/{r['id']}",
         })
     return out

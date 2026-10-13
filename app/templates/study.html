@@ -2,29 +2,26 @@
 {% block title %}Bot teammates · Capture the flag{% endblock %}
 {% block main %}
 <h1>Which bot is the better teammate?</h1>
-<p class="lead">In the shared game, the bot on your team is picked at random each match and shown only as
-  "Bot A" or "Bot B", so what you expect of a bot can't change how you rate it. After the match you are asked
-  one question, "Was your bot teammate helpful?", and then told which bot it was.</p>
+<p class="lead">In the shared game, the bot on your team is picked at random each match, either the scripted bot
+  or the trained bot, and it is always shown by its name. Nobody is asked to rate it. Instead this page counts
+  what happened: on teams that had each bot, who scored, the people or the bots.</p>
 
-<p>Results so far, from everyone who played. Each person answers once per match. With few answers the numbers
-  mean little: below {{ min_n }} ratings this page shows only the counts.</p>
+<p>Results so far, from every match a person played in. With few matches these numbers mean little, so each
+  row says how many matches and people it comes from.</p>
 
 <div class="table-wrap">
 <table class="study">
-  <caption class="visually-hidden">Ratings and captures for each teammate bot</caption>
+  <caption class="visually-hidden">Captures for each teammate bot</caption>
   <thead>
-    <tr><th scope="col">Teammate bot</th><th scope="col">Matches</th><th scope="col">Ratings (skipped)</th>
-      <th scope="col">Ratings 1 / 2 / 3 / 4 / 5</th><th scope="col">Mean (95% interval)</th>
+    <tr><th scope="col">Teammate bot</th><th scope="col">Matches</th><th scope="col">People</th>
       <th scope="col">Team captures: people / bots</th></tr>
   </thead>
   <tbody>
-    {% for r in results %}
+    {% for r in results.bots %}
     <tr data-bot="{{ r.bot }}">
       <th scope="row">{{ r.text[0] | upper }}{{ r.text[1:] }}</th>
       <td>{{ r.matches }}</td>
-      <td>{{ r.ratings }} ({{ r.skipped }})</td>
-      <td>{{ r.counts["1"] }} / {{ r.counts["2"] }} / {{ r.counts["3"] }} / {{ r.counts["4"] }} / {{ r.counts["5"] }}</td>
-      <td>{% if r.ratings >= min_n %}{{ r.mean }} ({{ r.low }}–{{ r.high }}){% else %}not enough ratings (n = {{ r.ratings }}){% endif %}</td>
+      <td>{{ r.people }}</td>
       <td>{{ r.captures.people }} / {{ r.captures.bots }}</td>
     </tr>
     {% endfor %}
@@ -32,8 +29,35 @@
 </table>
 </div>
 
+<h2>Each person</h2>
+{% if results.people %}
+<div class="table-wrap">
+<table class="study-people">
+  <caption class="visually-hidden">Captures by each person and by their bot teammate</caption>
+  <thead>
+    <tr><th scope="col">Person</th><th scope="col">Bot teammate</th><th scope="col">Matches</th>
+      <th scope="col">Captures by the person</th><th scope="col">Captures by their bot teammate</th></tr>
+  </thead>
+  <tbody>
+    {% for p in results.people %}
+    <tr>
+      <th scope="row">{{ p.label }}</th>
+      <td>{{ "scripted" if p.bot == "scripted" else "trained (" ~ p.bot ~ ")" }}</td>
+      <td>{{ p.matches }}</td>
+      <td>{{ p.own_captures }}</td>
+      <td>{{ p.bot_captures }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+{% else %}
+<p>No matches with a person in them yet.</p>
+{% endif %}
+
 <p class="note">"Team captures" counts every capture by the teams that had this bot as a teammate: how many were
   scored by people and how many by bots. It shows whether a bot helped people score or scored on its own.
-  The interval assumes ratings are independent, which they are not quite: one person may rate several matches.
-  Only anonymous labels are kept, never cookies. The bot type is never shown during a match.</p>
+  Matches are not independent samples: one person may play many of them, and some people play carelessly.
+  A capture made while a bot covered for someone who left counts as a bot's. Only anonymous labels are kept,
+  never cookies.</p>
 {% endblock %}

@@ -42,17 +42,6 @@
   </div>
 
   <p class="notice" data-field="notice" hidden></p>
-  <form class="rate" data-field="rate" hidden>
-    <fieldset>
-      <legend>Was your bot teammate helpful?</legend>
-      <div class="rate-options">
-        {% for n in range(1, 6) %}<button type="submit" class="small" value="{{ n }}">{{ n }}</button>{% endfor %}
-        <button type="submit" class="small secondary" value="skip">Skip</button>
-      </div>
-      <small>1 is not at all, 5 is very. Then you see which bot it was.</small>
-    </fieldset>
-  </form>
-  <p class="reveal" data-field="reveal" aria-live="polite" hidden></p>
   <p class="status" data-field="status">Not connected yet.</p>
 
   <h3>Players</h3>
@@ -64,8 +53,8 @@
 
 <p class="note">Every move is recorded with an anonymous name (never your cookie), so matches can be replayed and the bots
   can be judged against how people really play. See <a href="/log">what's being recorded</a>.
-  Your bot teammate may be shown only as "Bot A" or "Bot B" until the match ends, so you can rate it without
-  knowing which bot it is; see <a href="/study">why, and the results</a>.</p>
+  Your bot teammate is picked at random each match, the scripted bot or the trained bot, and always named;
+  see <a href="/study">which one helps people score</a>.</p>
 <noscript><p>The game runs in your browser and needs JavaScript.</p></noscript>
 <script src="{{ asset("board.js") }}" defer></script>
 <script src="{{ asset("game.js") }}" defer></script>

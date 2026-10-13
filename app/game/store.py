@@ -49,9 +49,10 @@ class Store:
                 "INSERT INTO replays (match_id, actions, hash) VALUES (?, ?, ?)",
                 (match_id, json.dumps(replay, separators=(",", ":")), final),
             )
-            conn.executemany(  # which bot each team's person had as a blinded teammate (ADR 0017)
-                "INSERT INTO match_study (match_id, team, bot, letter, seed) VALUES (?, ?, ?, ?, ?)",
-                [(match_id, team, bot, letter, seed) for team, bot, letter, seed in study],
+            conn.executemany(  # which bot each team's person had as a teammate (ADR 0017, 0019)
+                # letter is unused since ADR 0019 (nobody is blinded); the column is kept, so it stays empty
+                "INSERT INTO match_study (match_id, team, bot, letter, seed) VALUES (?, ?, ?, '', ?)",
+                [(match_id, team, bot, seed) for team, bot, seed in study],
             )
 
     @staticmethod

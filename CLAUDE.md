@@ -25,10 +25,8 @@ so. The rules of the game are ADR 0010; any change to them bumps
   choose.
 - **Never play matches for nobody.** An arena with no one in it goes idle;
   every saved match had a person in it.
-- **Never hide which bot is playing.** Every bot seat shows a name. In a
-  match where your teammate's bot is blinded (ADR 0017), it shows as "Bot A"
-  or "Bot B", and is revealed after the match ends and you have rated it or
-  skipped. Opponent bots are always named.
+- **Never hide which bot is playing.** Every bot seat names its bot, always:
+  teammates and opponents, during the match and after (ADR 0019).
 - **Never log or show a visitor's cookie.** Use the public label.
 - **Never touch the database or the log inside a turn.** Write them after it,
   or in a thread.
