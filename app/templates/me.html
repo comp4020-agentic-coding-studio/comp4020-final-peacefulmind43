@@ -17,11 +17,11 @@
   <tbody>
     {% for m in matches %}
     <tr data-match="{{ m.id }}">
-      <td>{{ m.date }}</td>
-      <td>{{ m.team | capitalize }}</td>
-      <td>{{ m.score[0] }}–{{ m.score[1] }}, you {{ m.result }}</td>
-      <td>{{ m.teammates | join(", ") if m.teammates else "only bots" }}</td>
-      <td>{% if not m.bot_teammate %}–{% elif m.bot_teammate.rated %}Bot {{ m.bot_teammate.letter }} was
+      <td data-label="Ended">{{ m.date }}</td>
+      <td data-label="Team">{{ m.team | capitalize }}</td>
+      <td data-label="Score">{{ m.score[0] }}–{{ m.score[1] }}, you {{ m.result }}</td>
+      <td data-label="Teammates">{{ m.teammates | join(", ") if m.teammates else "only bots" }}</td>
+      <td data-label="Bot teammate">{% if not m.bot_teammate %}–{% elif m.bot_teammate.rated %}Bot {{ m.bot_teammate.letter }} was
         {{ "the scripted bot" if m.bot_teammate.bot == "scripted" else "the trained bot (" ~ m.bot_teammate.bot ~ ")" }};
         {{ "you skipped" if m.bot_teammate.score is none else "you rated it " ~ m.bot_teammate.score ~ " of 5" }}
         {% else %}Bot {{ m.bot_teammate.letter }}, not rated yet
@@ -34,7 +34,7 @@
           </select>
           <button type="submit" class="small">Answer</button>
         </form>{% endif %}</td>
-      <td><a href="{{ m.replay }}">Watch match {{ m.id }}</a></td>
+      <td data-label="Replay"><a href="{{ m.replay }}">Watch match {{ m.id }}</a></td>
     </tr>
     {% endfor %}
   </tbody>

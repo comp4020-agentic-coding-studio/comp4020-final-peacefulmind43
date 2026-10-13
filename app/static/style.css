@@ -191,3 +191,23 @@ table.my-matches td { white-space: normal; vertical-align: top; }
 .replay-controls button { min-height: 2.75rem; }
 .turn-slider { display: flex; align-items: center; gap: 0.5rem; }
 .turn-slider input { flex: 1; min-width: 0; }
+/* On a phone the board and the move pad must fit on one screen: the game
+   comes straight after the heading, and the introduction follows it. */
+@media (max-width: 700px) {
+  main:has(> section.game:not(.replay)) { display: flex; flex-direction: column; }
+  main:has(> section.game:not(.replay)) > h1 { order: -2; font-size: 1.3rem; margin: 0.75rem 0 0; }
+  main > section.game:not(.replay) { order: -1; }
+  header.site { padding-block: 0.5rem; }
+  .scorebar { margin-top: 0.25rem; }
+  .game h3 { margin: 0.75rem 0 0.25rem; }
+  .pad { grid-template-columns: repeat(3, 3rem); grid-template-rows: repeat(3, 2.9rem); margin: 0.4rem 0; }
+}
+@media (pointer: coarse) { .board-hint { display: none; } }
+.table-wrap { position: relative; } /* keeps a visually hidden caption inside the scroll box */
+@media (max-width: 700px) {
+  table.my-matches thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  table.my-matches, table.my-matches tbody, table.my-matches tr, table.my-matches td { display: block; width: 100%; }
+  table.my-matches tr { border-bottom: 2px solid var(--line); padding: 0.4rem 0; }
+  table.my-matches td { border: 0; padding: 0.15rem 0.6rem; }
+  table.my-matches td::before { content: attr(data-label) ": "; color: var(--muted); font-size: 0.85rem; }
+}
