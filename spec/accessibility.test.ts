@@ -25,7 +25,7 @@ async function violations(path: string, cookie?: string) {
 }
 
 it("has no serious accessibility problems on any page", async () => {
-  for (const path of ["/", "/log", "/readme/", "/study"]) {
+  for (const path of ["/", "/log", "/readme/", "/study", "/me"]) {
     expect(await violations(path), path).toEqual([]);
   }
 });

@@ -185,3 +185,5 @@ svg .player, svg .flag { transition: transform 0.2s linear; }
 .rate-options button { min-width: 2.75rem; min-height: 2.75rem; }
 button.secondary { background: var(--muted); }
 .reveal { font-weight: 600; }
+.rate-later { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-top: 0.3rem; white-space: normal; }
+table.my-matches td { white-space: normal; vertical-align: top; }

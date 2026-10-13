@@ -400,6 +400,66 @@ async def study_page(request: Request):
     return templates.TemplateResponse(request, "study.html", {"results": results, "min_n": study.MIN_N})
 
 
+# --- your matches -------------------------------------------------------------
+
+
+def my_matches(conn, visitor_id: str, limit: int = 50) -> list[dict]:
+    """The visitor's own finished matches, newest first: when, team, score,
+    who else played (labels only), their rating, and the replay."""
+    rows = conn.execute(
+        """SELECT m.id, m.ended_at, m.score_blue, m.score_red, m.team_size, m.status,
+                  min(s.seat) AS seat, sum(s.to_tick - s.from_tick) AS turns
+           FROM seat_spans s JOIN matches m ON m.id = s.match_id
+           WHERE s.visitor_id = ? AND m.status = 'finished'
+           GROUP BY m.id ORDER BY m.id DESC LIMIT ?""",
+        (visitor_id, limit),
+    ).fetchall()
+    out = []
+    for r in rows:
+        team = played_on(conn, r["id"], visitor_id)
+        others = conn.execute(
+            """SELECT DISTINCT s.visitor_id, s.seat FROM seat_spans s
+               WHERE s.match_id = ? AND s.visitor_id != ? ORDER BY s.seat""", (r["id"], visitor_id)
+        ).fetchall()
+        mates = sorted({activity.visitor_label(o["visitor_id"]) for o in others if (o["seat"] < r["team_size"]) == (team == 0)})
+        rivals = sorted({activity.visitor_label(o["visitor_id"]) for o in others if (o["seat"] < r["team_size"]) != (team == 0)})
+        study_row = conn.execute("SELECT bot, letter FROM match_study WHERE match_id = ? AND team = ?", (r["id"], team)).fetchone()
+        rating = conn.execute("SELECT score FROM study_ratings WHERE match_id = ? AND visitor_id = ?", (r["id"], visitor_id)).fetchone()
+        mine, theirs = (r["score_blue"], r["score_red"]) if team == 0 else (r["score_red"], r["score_blue"])
+        out.append({
+            "id": r["id"], "ended_at": r["ended_at"], "team": "blue" if team == 0 else "red",
+            "score": [r["score_blue"], r["score_red"]],
+            "result": "won" if mine > theirs else "lost" if mine < theirs else "drew",
+            "teammates": mates, "opponents": rivals,
+            # the bot teammate is revealed only once you have answered (ADR 0017)
+            "bot_teammate": None if study_row is None else (
+                {"letter": study_row["letter"], "bot": study_row["bot"] if rating else None, "rated": rating is not None,
+                 "score": rating["score"] if rating else None}),
+            "replay": f"/matches/{r['id']}",
+        })
+    return out
+
+
+@app.get("/api/me/matches")
+async def api_my_matches(request: Request):
+    me = request.cookies.get(COOKIE)
+    if not me:
+        return {"label": None, "matches": []}
+    with db.connect() as conn:
+        return {"label": activity.visitor_label(me), "matches": my_matches(conn, me)}
+
+
+@app.get("/me", response_class=HTMLResponse)
+async def me_page(request: Request):
+    me, new = visitor(request)
+    with db.connect() as conn:
+        matches = [] if new else my_matches(conn, me)
+    for m in matches:
+        m["date"] = time.strftime("%Y-%m-%d %H:%M UTC", time.gmtime(m["ended_at"] or 0))
+    return remember(templates.TemplateResponse(
+        request, "me.html", {"label": activity.visitor_label(me), "matches": matches}), me, new)
+
+
 # --- the log (ADR 0006) -----------------------------------------------------
 
 
