@@ -12,6 +12,12 @@ the middle, and learned to stay on their own half: 100% of their turns.
 
 Writes rl/runs/<name>/: metrics.csv (one row per update), checkpoints, and
 <name>.npz (the exported bot) at the end.
+
+FCP-lite (ADR 0018): with --fcp the learner plays one or two seats of its team
+and partners drawn from rl/partners.TRAIN_POOL play the rest; opponents are the
+full scripted bot or a pool member. The curriculum is off; start from cur4:
+
+    python rl/train.py --name fcp1 --fcp --init rl/runs/pool/cur4.pt --shaping-frac 0
 """
 
 from __future__ import annotations
@@ -27,7 +33,7 @@ import numpy as np
 import torch
 from torch import nn
 
-from env import Batch
+from env import Batch, FcpBatch
 from model import Net, export
 
 HERE = Path(__file__).resolve().parent
@@ -53,6 +59,9 @@ def main() -> None:
     ap.add_argument("--level-step", type=float, default=0.1, help="curriculum step; 0 disables it")
     ap.add_argument("--level-win", type=float, default=0.7, help="win rate that raises the level")
     ap.add_argument("--start-level", type=float, default=0.0, help="the curriculum level to start at")
+    ap.add_argument("--fcp", action="store_true", help="FCP-lite: partners from the pool (ADR 0018)")
+    ap.add_argument("--p-pool-opp", type=float, default=0.4, help="FCP: chance the opponents are a pool member, not the full scripted bot")
+    ap.add_argument("--keep-every", type=int, default=0, help="also keep checkpoint_<update>.pt every this many updates")
     ap.add_argument("--init", help="start from this checkpoint instead of from scratch")
     ap.add_argument("--device", default="mps" if torch.backends.mps.is_available() else "cpu",
                     help="where the update runs; rollouts always run on the CPU")
@@ -65,7 +74,14 @@ def main() -> None:
     torch.manual_seed(args.seed)
     torch.set_num_threads(args.threads)
 
-    batch = Batch(args.games, seed=args.seed)
+    if args.fcp:
+        import partners
+
+        pool = partners.make(partners.TRAIN_POOL)
+        batch = FcpBatch(args.games, seed=args.seed, pool=pool, p_pool_opp=args.p_pool_opp)
+        args.level_step = 0.0  # no curriculum: the pool is the variety
+    else:
+        batch = Batch(args.games, seed=args.seed)
     planes, scalars, owner = batch.observe()
     rows, T = len(owner), args.rollout
     # Two copies of one network: `learner` is trained on the GPU (5x faster on
@@ -92,6 +108,8 @@ def main() -> None:
     at_level: deque = deque(maxlen=100)  # results since the level last changed
     results: deque = deque(maxlen=200)
     captures: deque = deque(maxlen=200)
+    by_partner: dict = {}  # FCP: partner name -> recent results
+    split: deque = deque(maxlen=200)  # FCP: (learner captures, partner captures)
     updates = args.steps // (T * rows)
     log = open(out / "metrics.csv", "w", newline="")
     writer = csv.writer(log)
@@ -126,6 +144,9 @@ def main() -> None:
                 results.append(info["result"])
                 captures.append(info["captures"])
                 at_level.append(info["result"])
+                if "partner" in info:
+                    by_partner.setdefault(info["partner"], deque(maxlen=100)).append(info["result"])
+                    split.append((info["learner_caps"], info["partner_caps"]))
             if level < 1.0 and len(at_level) == at_level.maxlen and sum(r == 1 for r in at_level) / len(at_level) >= args.level_win:
                 level = min(1.0, round(level + args.level_step, 2))
                 at_level.clear()
@@ -195,10 +216,17 @@ def main() -> None:
         log.flush()
         if update % 5 == 0 or update == updates:
             print(f"update {update}/{updates}  samples {samples:,}  {samples / secs:,.0f}/s  level {level:.1f}  shaping {shaping:.2f}  "
-                  f"last {games} games vs scripted: win {win:.2f} draw {draw:.2f} lose {lose:.2f}  captures {caps:.2f}  "
+                  f"last {games} games {'with the pool' if args.fcp else 'vs scripted'}: win {win:.2f} draw {draw:.2f} lose {lose:.2f}  captures {caps:.2f}  "
                   f"entropy {ent_v:.2f}", flush=True)
+        if args.fcp and (update % 25 == 0 or update == updates):
+            lc, pc = (np.mean([a for a, _ in split]), np.mean([b for _, b in split])) if split else (float("nan"),) * 2
+            parts = "  ".join(f"{k} {sum(r == 1 for r in v) / len(v):.2f}/{sum(r == -1 for r in v) / len(v):.2f}"
+                              for k, v in sorted(by_partner.items()))
+            print(f"  captures by learner {lc:.2f}, by partners {pc:.2f}; win/loss by partner: {parts}", flush=True)
         if update % 25 == 0 or update == updates:
             torch.save(actor.state_dict(), out / "checkpoint.pt")
+        if args.keep_every and update % args.keep_every == 0:
+            torch.save(actor.state_dict(), out / f"checkpoint_{update}.pt")
 
     probe = Batch(4, seed=12345).observe()
     export(net, str(out / f"{args.name}.npz"), (probe[0][:16], probe[1][:16]))

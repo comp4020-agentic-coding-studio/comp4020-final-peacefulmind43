@@ -515,3 +515,56 @@ bot (scripted or cur4) stays and is saved for every match, so the behaviour
 of everyone who plays is the evidence. `/study` now shows, for each bot, the
 captures by people and by bots on its teams, and for each person, their own
 captures and their bot teammate's, with n on the page (ADR 0019).
+
+## 2026-10-13: training the bot with many partners (ADR 0018)
+
+cur4 learned with copies of itself on its team. People are not copies of
+cur4. So I wrote ADR 0018: FCP-lite, after Strouse et al. 2021. The bot plays
+one or two seats, and a partner from a pool plays the rest of its team. The
+pool has old runs at different stages (cur1 early and weak, cur2, a mid-run
+cur4, cur4 itself, phi2 which only defends), the scripted bot, the scripted
+bot with more noise, and a random walker. Before choosing the pool, I played
+each old bot against the scripted bot on 40 unseen maps and looked at where
+it went, so I know what kind of partner each one is.
+
+A new evaluation, `rl/eval.py --teammate`, puts the bot in one seat beside
+partners that are not in the pool (scripted with 30% noise, cur3, lr1e3)
+against the full scripted team, and puts cur4 in the same seat with the same
+partners and maps. It counts captures by the bot and by its partners, so I
+can see if the bot does everything itself.
+
+This check already showed a problem with cur4 before any new training: beside
+the scripted bot with 30% noise it lost 52% of 200 games, and beside cur3 it
+lost 79%. Against the scripted bot, with cur4 on every seat, it loses 6%.
+
+**Profile first.** The first version ran each partner network one seat at a
+time. A profile of the environment showed the partners' forward passes were
+the largest cost, so now each network makes one batched pass per turn for all
+the games it plays in. The environment alone runs about 6,000 samples a
+second; full training about 2,950 (cur4's runs: about 4,000).
+
+**Smoke test** (1M samples, 6 minutes, from cur4). It learns: in training,
+losses fell from 23% to 16% of games. On 200 unseen maps, beside held-out
+partners, against the full scripted team, compared with cur4 in the same
+seat:
+
+| partner (held out) | bot | win | draw | loss |
+|---|---|---|---|---|
+| scripted, 30% noise | smoke | 24.5% | 41.5% | 34.0% [27.8, 40.8] |
+| | cur4 | 24.0% | 24.0% | 52.0% [45.1, 58.8] |
+| cur3 | smoke | 8.5% | 39.0% | 52.5% [45.6, 59.3] |
+| | cur4 | 5.0% | 16.0% | 79.0% [72.8, 84.1] |
+| lr1e3 | smoke | 43.5% | 32.5% | 24.0% [18.6, 30.4] |
+| | cur4 | 43.0% | 28.0% | 29.0% [23.2, 35.6] |
+
+Against the full scripted bot on all seats it still wins 47.0% and loses
+7.0% (200 games), close to cur4. The gain is mostly fewer losses, not more
+wins: the smoke bot spends less time on the enemy half (8% of turns, cur4
+11%) and lets in fewer captures. This is one short run, so it is a sign, not
+a result. The mirror tests still pass (28 passed).
+
+**The real run** is `fcp1`: 88M samples from cur4, seed 7, about 8.3 hours,
+with a checkpoint kept every 250 updates. `rl/after_fcp.sh fcp1` waits for it,
+checks the export against PyTorch, and runs both evaluations on 400 unseen
+maps next to cur4. Nothing is deployed from this; that is a separate choice,
+and the people in the blind study (ADR 0017) are the real test.

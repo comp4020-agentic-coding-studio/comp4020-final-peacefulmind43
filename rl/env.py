@@ -136,5 +136,113 @@ class Batch:
         return rewards, dones, finished
 
 
+class FcpGame(Game):
+    """One FCP-lite game (ADR 0018). The learner plays `n_learn` seats of its
+    team, chosen at random each game (so a scripted partner's role, which
+    depends on its seat, varies); one partner drawn from the pool plays the
+    rest of the team; the other team is the full scripted bot, or with
+    probability `p_pool_opp` one pool member for the whole team."""
+
+    def __init__(self, rng: random.Random, team_size: int, n_learn: int, pool: list, p_pool_opp: float, gid: int):
+        self.n_learn, self.pool, self.p_pool_opp, self.gid = n_learn, pool, p_pool_opp, gid
+        super().__init__(rng, team_size)
+
+    def reset(self) -> None:
+        self.state = engine.new_game(self.rng.randrange(*TRAIN_SEEDS), self.team_size)
+        self.team = self.rng.choice((0, 1))
+        mates = [i for i, p in enumerate(self.state.players) if p.team == self.team]
+        self.seats = sorted(self.rng.sample(mates, self.n_learn))
+        self.partner_seats = [i for i in mates if i not in self.seats]
+        self.enemy_seats = [i for i, p in enumerate(self.state.players) if p.team != self.team]
+        self.partner = self.rng.choice(self.pool)
+        self.opponent = self.rng.choice(self.pool) if self.rng.random() < self.p_pool_opp else None  # None: full scripted
+        self.phi = [potential(self.state, i) for i in self.seats]
+        self.caps_learner = self.caps_partner = 0
+
+    def finish(self, actions: list[int], others: dict[int, int], gamma: float, shaping_weight: float):
+        """Step the game with the learner's view actions and everyone else's
+        engine actions."""
+        s = self.state
+        full = [0] * len(s.players)
+        for seat, a in zip(self.seats, actions):
+            full[seat] = to_engine(self.team, a)  # the network chose in its flipped view
+        for seat, a in others.items():
+            full[seat] = a
+        before = list(s.score)
+        events = engine.step(s, full)
+        for ev, seat in events:
+            if ev == "capture" and s.players[seat].team == self.team:
+                if seat in self.seats:
+                    self.caps_learner += 1
+                else:
+                    self.caps_partner += 1
+        team_reward = (s.score[self.team] - before[self.team]) - (s.score[1 - self.team] - before[1 - self.team])
+        rewards = []
+        for j, seat in enumerate(self.seats):
+            phi_after = potential(s, seat)
+            shaped = gamma * phi_after - self.phi[j]
+            self.phi[j] = phi_after
+            rewards.append(float(team_reward) + shaping_weight * shaped)
+        info = {}
+        if s.done:
+            mine, theirs = s.score[self.team], s.score[1 - self.team]
+            info = {"result": 1 if mine > theirs else -1 if mine < theirs else 0, "captures": mine,
+                    "learner_caps": self.caps_learner, "partner_caps": self.caps_partner,
+                    "partner": self.partner.name, "opponent": self.opponent.name if self.opponent else "scripted-full"}
+        return rewards, s.done, info
+
+
+class FcpBatch(Batch):
+    """N FCP-lite games stepped together (ADR 0018). Game slots cycle through
+    (2v2, 1 learner seat), (3v3, 1 learner seat), (3v3, 2 learner seats), fixed
+    per slot, so the number of rows never changes. Partners' moves are batched:
+    one forward pass per network per turn, across every game it plays in."""
+
+    SLOTS = ((2, 1), (3, 1), (3, 2))
+
+    def __init__(self, n_games: int, seed: int, pool: list, p_pool_opp: float = 0.4):
+        self.rng = random.Random(seed)
+        self.pool = pool
+        self.games = [FcpGame(self.rng, *self.SLOTS[g % len(self.SLOTS)], pool, p_pool_opp, g) for g in range(n_games)]
+
+    def step(self, actions: np.ndarray, owner: list[int], gamma: float, shaping_weight: float, level: float = 1.0):
+        # 1. everyone who isn't the learner, grouped by who plays them
+        jobs: dict[int, list] = {}  # id(partner) -> [(state, seat, game id)]
+        who: dict[int, object] = {}
+        scripted_full = []
+        for g, game in enumerate(self.games):
+            s = game.state
+            for seat in game.partner_seats:
+                jobs.setdefault(id(game.partner), []).append((s, seat, g))
+                who[id(game.partner)] = game.partner
+            for seat in game.enemy_seats:
+                if game.opponent is None:
+                    scripted_full.append((g, seat))
+                else:
+                    jobs.setdefault(id(game.opponent), []).append((s, seat, g))
+                    who[id(game.opponent)] = game.opponent
+        others: list[dict[int, int]] = [{} for _ in self.games]
+        for key, js in jobs.items():
+            for (_, seat, g), a in zip(js, who[key].act_many(js, self.rng)):
+                others[g][seat] = a
+        for g, seat in scripted_full:
+            others[g][seat] = bots.scripted_action(self.games[g].state, seat)
+        # 2. step every game
+        rewards = np.zeros(len(actions), dtype=np.float32)
+        dones = np.zeros(len(actions), dtype=np.float32)
+        finished = []
+        row = 0
+        for g, game in enumerate(self.games):
+            n = len(game.seats)
+            r, done, info = game.finish([int(a) for a in actions[row : row + n]], others[g], gamma, shaping_weight)
+            rewards[row : row + n] = r
+            dones[row : row + n] = float(done)
+            if done:
+                finished.append(info)
+                game.reset()
+            row += n
+        return rewards, dones, finished
+
+
 OBS_SHAPE = (len(PLANES), HEIGHT, WIDTH)
 N_SCALARS = len(SCALARS)
