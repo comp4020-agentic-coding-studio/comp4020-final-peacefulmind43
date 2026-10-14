@@ -19,7 +19,7 @@ from . import policy
 
 # Bots a person may get as a teammate. Add a name here to put a new bot in
 # the study; it must be a "scripted" or an exported bot in app/game/bots/.
-TEAMMATE_BOTS = ["scripted", "cur4"]
+TEAMMATE_BOTS = ["scripted", "cur4", "fcp1"]
 
 
 def draw(seed: int, bots: list[str] | None = None) -> dict:

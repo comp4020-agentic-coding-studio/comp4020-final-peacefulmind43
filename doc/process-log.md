@@ -568,3 +568,49 @@ with a checkpoint kept every 250 updates. `rl/after_fcp.sh fcp1` waits for it,
 checks the export against PyTorch, and runs both evaluations on 400 unseen
 maps next to cur4. Nothing is deployed from this; that is a separate choice,
 and the people in the blind study (ADR 0017) are the real test.
+
+## 2026-10-14: fcp1 passes its bar, and what it really learned
+
+The fcp1 run finished. `rl/after_fcp.sh` checked the export (NumPy and
+PyTorch differ by at most 1e-6) and played fcp1 and cur4 in the same seat,
+with the same partners and maps, on 400 unseen maps against the full scripted
+team. Win, draw and loss, with 95% intervals:
+
+| partner | bot | win | draw | loss |
+|---|---|---|---|---|
+| scripted, 30% noise (held out) | fcp1 | 43.5% [38.7, 48.4] | 34.2% [29.8, 39.0] | 22.2% [18.4, 26.6] |
+| | cur4 | 22.8% [18.9, 27.1] | 24.2% [20.3, 28.7] | 53.0% [48.1, 57.8] |
+| cur3 (held out) | fcp1 | 36.5% [31.9, 41.3] | 31.2% [26.9, 36.0] | 32.2% [27.9, 37.0] |
+| | cur4 | 4.8% [3.1, 7.3] | 17.5% [14.1, 21.5] | 77.8% [73.4, 81.6] |
+| lr1e3 (held out) | fcp1 | 48.2% [43.4, 53.1] | 37.8% [33.1, 42.6] | 14.0% [10.9, 17.7] |
+| | cur4 | 44.5% [39.7, 49.4] | 27.0% [22.9, 31.6] | 28.5% [24.3, 33.1] |
+| scripted (in the pool) | fcp1 | 55.8% [50.9, 60.5] | 33.5% [29.1, 38.3] | 10.8% [8.1, 14.2] |
+| | cur4 | 36.2% [31.7, 41.1] | 34.5% [30.0, 39.3] | 29.2% [25.0, 33.9] |
+
+With fcp1 on every seat against the full scripted bot, it wins 48.5%
+[43.6, 53.4], draws 49.2% and loses 2.2%. cur4 there wins 48.2% [43.4, 53.1],
+draws 45.8% and loses 6.0%.
+
+**The bar in ADR 0018 is met.** fcp1 loses less than cur4 beside every
+held-out partner, and the loss intervals don't overlap for any of the three
+(the ADR asked for one). Against the full scripted bot it did not get worse:
+its win rate is inside cur4's interval, and it loses fewer games.
+
+**But it is not a team player.** The partners still score almost nothing:
+beside the held-out partners, captures by partners are 0.00 to 0.05 a game,
+and the bot makes nearly all of them (1.20 to 1.45). Beside the scripted bot,
+partners score 0.25 with fcp1 and 0.27 with cur4, so no change. What changed
+is where the bot goes: it spends 14 to 21% of turns on the enemy half (18 to
+19% beside two of the held-out partners), against 9 to 13% for cur4, and it
+is caught more often (1.1 to 2.4 times a game, cur4 about 1.0). So FCP made
+the bot robust to how good its partner is: it no longer falls apart beside a
+weak one. It did not teach it to help the partner score. The next idea would
+be a reward for cooperation, or giving the bot its partners' intent (for
+example, where each partner is heading) in the observation.
+
+**I decided to deploy fcp1 and add it to the study.** fcp1 now fills every
+empty seat, plays the opponents and is the bot at `/?watch`. The teammate draw
+in the shared arena is now scripted, cur4 or fcp1, so `/study` compares all
+three with real people. cur4 stays on the server for that. ADR 0018 is now
+accepted (2026-10-14). It was merged as proposed, and a proposed record may
+be finalised, so only its status line changed.

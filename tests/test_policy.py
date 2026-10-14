@@ -18,3 +18,15 @@ def test_the_deployed_bot_exists_if_one_is_named():
     pointer = BOT_DIR / "current.txt"
     if pointer.exists():
         assert deployed() is not None, f"current.txt names {pointer.read_text().strip()}, which isn't in {BOT_DIR}"
+
+
+def test_every_bot_the_server_names_is_a_checked_export():
+    """The deployed bot, the bot on show and every trained teammate bot in the
+    study are among the exports checked above, so none ships unchecked."""
+    from app.game import study
+
+    checked = {path.stem for path in BOT_DIR.glob("*.npz")}
+    named = {(BOT_DIR / f).read_text().strip() for f in ("current.txt", "watch.txt") if (BOT_DIR / f).exists()}
+    named |= {b for b in study.TEAMMATE_BOTS if b != "scripted"}
+    assert named <= checked, f"named but not exported: {named - checked}"
+    assert {"cur4", "fcp1"} <= named

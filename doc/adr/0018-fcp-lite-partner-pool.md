@@ -1,7 +1,9 @@
 # 0018. FCP-lite: training the bot with a pool of partners, not copies of itself
 
-Status: proposed (2026-10-13). Extends ADR 0013 (training); the observation,
-reward, network and serving there are unchanged.
+Status: accepted (2026-10-14; proposed 2026-10-13). Extends ADR 0013
+(training); the observation, reward, network and serving there are unchanged.
+Accepted after fcp1 met the bar below; this status line is the only change
+made at acceptance.
 
 ## Context
 

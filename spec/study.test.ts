@@ -11,7 +11,7 @@ afterEach(() => {
   for (const s of open.splice(0)) s.close();
 });
 
-const realName = /^(scripted|cur\d+)$/;
+const realName = /^(scripted|[a-z]+\d+)$/; // "scripted" or an exported bot such as cur4 or fcp1
 
 async function studyArena(seed: number) {
   const res = await fetch(url("/api/arenas"), {
@@ -104,7 +104,7 @@ it("has no rating endpoint and no rating question on any page", async () => {
 
 it("publishes behaviour for each teammate bot with n, and labels only", async () => {
   const data = await study();
-  expect(data.bots.map((b: any) => b.bot)).toEqual(expect.arrayContaining(["scripted", "cur4"]));
+  expect(data.bots.map((b: any) => b.bot)).toEqual(expect.arrayContaining(["scripted", "cur4", "fcp1"]));
   for (const b of data.bots) {
     expect(b).toMatchObject({ matches: expect.any(Number), people: expect.any(Number), captures: { people: expect.any(Number), bots: expect.any(Number) } });
   }
