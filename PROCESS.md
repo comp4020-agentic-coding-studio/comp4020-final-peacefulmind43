@@ -110,6 +110,9 @@ the board everyone was shown, so they can't see people's choices.
 ## What comes next
 
 The bot now fills every empty seat: on 400 unseen maps it beats the scripted
-bot 48% of the time and loses 6% ([`65adbcc`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-peacefulmind43/commit/65adbcc)). Beating a program is not
+bot 48% of the time and loses 6% ([`65adbcc`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-peacefulmind43/commit/65adbcc)). Since 2026-10-14 that bot is fcp1,
+trained beside a pool of partners (ADR 0018): it loses far less than cur4
+beside partners it never met, but still scores nearly everything itself
+([`8b01211`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-peacefulmind43/commit/8b01211)). Beating a program is not
 being a good teammate for people, so the next step is measuring that with real
 players, starting at the crit, from the logs and replays above.
