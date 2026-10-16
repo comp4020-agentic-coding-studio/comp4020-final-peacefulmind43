@@ -11,11 +11,13 @@ mise exec -- flyctl logs -a comp4020-final-peacefulmind43
 ```
 
 Fly puts a time and the machine in front of each line. Moves arrive several
-times a second, so for a story, hide them and keep only the sentence:
+times a second, and there is also one line for each request (see "Request
+lines" below). For a story, hide both and keep only the sentence:
 
 ```sh
 mise exec -- flyctl logs -a comp4020-final-peacefulmind43 \
-  | grep --line-buffered -o '{"event".*}' | grep --line-buffered -v '"choice"' \
+  | grep --line-buffered -o '{"event".*}' \
+  | grep --line-buffered -v -E '"event": "(choice|request|stream_open|stream_close)"' \
   | jq -r --unbuffered .text
 ```
 
@@ -48,9 +50,44 @@ A full line looks like this:
 {"event": "pause", "visitor": "Visitor be016f", "at": 1791637013, "arena": "main", "match": 1, "seat": 2, "team": "red", "text": "Visitor be016f paused match 1 (player 3, red)"}
 ```
 
+If a person caused the line (a page they opened, a button they pressed), it
+also has `request`: the id of that request (see below). Lines from the game
+clock (tag, pickup, capture, takeover, match_end) have no `request`, because
+no request caused them.
+
 A takeover comes 5 seconds after a leave, unless the person comes back first
 (then you see a reclaim). After 60 seconds with no move, a takeover says "went
 quiet" instead.
+
+## Request lines and request ids
+
+The server also writes one line for each request it answers. Each request
+gets a short id of 8 letters and digits, like `c0cdafcb`. The same id is in
+the response header `x-request-id`, in the request line, and in every event
+line that the request caused. So you can tie them together: find the `pause`
+line, take its `request`, and search for it.
+
+```json
+{"event": "request", "request": "c0cdafcb", "method": "POST", "path": "/arena/pause", "visitor": "Visitor deb6ae", "status": 200, "ms": 0, "at": 1792122612, "text": "POST /arena/pause 200 in 0 ms"}
+{"event": "pause", "visitor": "Visitor deb6ae", "at": 1792122612, "arena": "p-OPw04yF9", "match": 1, "seat": 0, "team": "blue", "request": "c0cdafcb", "text": "Visitor deb6ae paused match 1 (player 1, blue)"}
+```
+
+| event | what it means |
+|---|---|
+| request | one request answered: `method`, `path`, `status`, `ms` (how long it took) and `visitor` (the public label, or `null` with no cookie) |
+| stream_open | a page opened a live stream (`/arena/events` or `/log/events`) |
+| stream_close | that stream closed; `ms` says how long it was open |
+| request_error | the server failed on a request it did not expect to fail; it answered 500 |
+
+To find every line about one request:
+
+```sh
+mise exec -- flyctl logs -a comp4020-final-peacefulmind43 | grep c0cdafcb
+```
+
+A live stream stays open for minutes, so it gets a line when it opens and a
+line when it closes, not one for each keep-alive. Files under `/static` get no
+line. The line never has the cookie, the request body or the query string.
 
 ## Telling two people apart
 
@@ -66,7 +103,9 @@ at the start, and match it to the `join` lines.
 2. "Both are choosing now: each choice line has their label and their seat,
    so one person can never move the other's player."
 3. "Visitor be016f paused match 1. Visitor b17e82 resumed it: anyone with a
-   seat and the page open can do that, and people watching can't."
+   seat and the page open can do that, and people watching can't. If both
+   press Pause at the same moment, the match is paused once, with one pause
+   line (ADR 0022)."
 4. "Visitor be016f closed the page. Five seconds later a bot took over player
    3 for them, and the match went on."
 5. "Visitor be016f came back to player 3. The match ended blue 2, red 1, and
@@ -77,6 +116,10 @@ at the start, and match it to the `join` lines.
 The same logs are how the live app is debugged. A few lines are not about
 people:
 
+- `request_error`: a request failed in a way the code did not expect. It has
+  the request id, the path, the error type and message, and the last three
+  places in the code (`trace`). The person saw "Something went wrong" with
+  the same id, so if they tell you the id, you can find the line.
 - `tick_error`: one arena failed a turn (the others keep running). It has the
   arena and the error.
 - `slow_tick`: a check of the arenas took too long, with how many ms.

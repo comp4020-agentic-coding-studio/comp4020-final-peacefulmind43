@@ -625,3 +625,39 @@ clarifies it: playing alone keeps the deadline, and the pause button (ADR
 0015) is the way to stop and think. It also notes the cost against WCAG
 2.2.1 (Timing Adjustable): the deadline can't be made longer without pausing.
 I may revisit this with a per-player setting.
+
+## 2026-10-16: the week 10 lecture, read against the app
+
+The week 10 lecture was about logs, sessions, who may do what, and two people
+acting at once. I read it against the app and found three gaps. Each was fixed
+in its own commit, with a spec that failed first.
+
+**A pause race.** The pause button toggled. If two people pressed Pause at the
+same moment, the first request paused the match and the second resumed it, so
+a pause was lost (the lecture's lost update). Now the request says what the
+person wants (`{"paused": true}` or `false`), from what their button shows, and
+asking for the state the match is already in does nothing: no second message,
+no second log line. A request without the field gets 400. The spec sends two
+pauses at once and checks the match stays paused with one pause line, then two
+resumes at once. A second spec checks that two moves in the same turn both
+count, since moves are simultaneous by design. ADR 0022 records this and
+compares a version check, which would also catch a Pause and a Resume at the
+same moment but gives one person an error.
+
+**No request log and no request id.** The app logged what people did, but not
+each request, and nothing tied a line to the request that caused it. A small
+middleware now gives each request an 8-character id, returns it in the
+`x-request-id` header, and prints one line per request (method, path, status,
+ms, the public label). Events logged during the request carry the same id, so
+a `pause` line points to its `POST /arena/pause`. Live streams log when they
+open and close, not each keep-alive. An unexpected error logs one line with the
+id, the error and a short trace, and answers 500 with the id. Turn-time events
+are unchanged. uvicorn's own access log is off in the Dockerfile, since the new
+line replaces it. `doc/reading-the-logs.md` explains the new lines.
+
+**A cookie without Secure.** The visitor cookie was HttpOnly and SameSite=Lax
+but not Secure. It is now Secure when the page came over https (Fly ends TLS
+and sets `x-forwarded-proto`), and not over plain http, so the dev server on a
+laptop still works. I kept the name `visitor` rather than the lecture's
+`__Secure-` prefix: the prefix needs Secure everywhere, and a new name would
+make every returning player a new person.
