@@ -114,7 +114,11 @@ Training and serving use the same observation builder, `app/game/obs.py`.
 
 ## Limits
 
-- **No human evaluation data yet.** Every partner above is a program. A blind
-  study with real people exists ([ADR 0017](../adr/0017-blind-teammate-study.md)),
-  but these results show a better partner for bots, not for people.
+- **No human evaluation data yet.** Every partner above is a program. For each
+  match with people, the live site records which bot was their teammate and
+  compares behaviour on `/study`
+  ([ADR 0017](../adr/0017-blind-teammate-study.md), with ratings and blinding
+  removed by [ADR 0019](../adr/0019-no-ratings-behaviour-only.md)). But there is
+  little such data yet, so these results show a better partner for bots, not
+  for people.
 - Each bot is one training run; checkpoints are local and not in git.
