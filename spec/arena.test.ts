@@ -1,5 +1,5 @@
 import { afterEach, expect, it } from "vitest";
-import { choose, createArena, fetchSaved, newVisitor, openStream, operatorKey, type Stream, url } from "./helpers";
+import { choose, createArena, fetchSaved, newVisitor, openStream, operatorKey, pause, type Stream, url } from "./helpers";
 
 // ADR 0011 (seats, joining, leaving) and ADR 0012 (turns that wait for people,
 // up to a deadline). Tests that need a known map, a short match or a short
@@ -330,7 +330,7 @@ it.runIf(operatorKey)("refuses moves and pauses from people on the bench, people
 
   for (const cookie of [benched, watcher]) {
     expect((await choose(cookie, EAST, seq++)).status).toBe(409);
-    expect((await fetch(url("/arena/pause"), { method: "POST", headers: { cookie } })).status).toBe(409);
+    expect((await pause(cookie, true)).status).toBe(409);
   }
   const anonymous = await fetch(url("/arena/input"), {
     method: "POST",
@@ -338,7 +338,7 @@ it.runIf(operatorKey)("refuses moves and pauses from people on the bench, people
     body: JSON.stringify({ dir: EAST, seq: seq++ }),
   });
   expect(anonymous.status).toBe(409);
-  expect((await fetch(url("/arena/pause"), { method: "POST" })).status).toBe(409);
+  expect((await pause(undefined, true)).status).toBe(409);
 });
 
 it.runIf(operatorKey)("never sends a visitor's cookie to anyone: not on the game page, the live view or the log", async () => {
@@ -373,7 +373,7 @@ it.runIf(operatorKey)("lets anyone in a match pause it for everyone, and anyone 
   await snapshot(sb);
   await nextTick(sa);
 
-  const paused = await fetch(url("/arena/pause"), { method: "POST", headers: { cookie: a } });
+  const paused = await pause(a, true);
   expect(paused.status).toBe(200);
   expect(await paused.json()).toMatchObject({ paused: true });
   const told = await sb.waitFor((e) => e.event === "pause" && e.data.paused === true, 2000);
@@ -385,11 +385,69 @@ it.runIf(operatorKey)("lets anyone in a match pause it for everyone, and anyone 
   expect(sa.events.slice(from).filter((e) => e.event === "tick")).toHaveLength(0);
 
   // someone else carries on
-  const resumed = await fetch(url("/arena/pause"), { method: "POST", headers: { cookie: b } });
+  const resumed = await pause(b, false);
   expect(await resumed.json()).toMatchObject({ paused: false });
   await sa.waitFor((e) => e.event === "pause" && e.data.paused === false, 2000);
   await nextTick(sa);
 }, 15000);
+
+// ADR 0022: two people acting on the same thing at once.
+it.runIf(operatorKey)("keeps a match paused when two people press Pause at the same moment, and runs it when two press Resume", async () => {
+  const { id } = await createArena({ team_size: 2, seed: 119, deadline_seconds: 0.3 });
+  const a = await newVisitor();
+  const b = await newVisitor();
+  const sa = await watch(a, id);
+  const sb = await watch(b, id);
+  await Promise.all([snapshot(sa), snapshot(sb)]);
+  await nextTick(sa);
+  // a request must say what the person wants
+  for (const body of [undefined, "{}", '{"paused": "yes"}']) {
+    const res = await fetch(url("/arena/pause"), { method: "POST", headers: { "content-type": "application/json", cookie: a }, body });
+    expect(res.status, `pause with body ${body}`).toBe(400);
+  }
+
+  // a pause request says what the person wants, so two of them agree; a toggle
+  // would let the second one resume the match (a lost update)
+  const from = sa.events.length;
+  const both = await Promise.all([pause(a, true), pause(b, true)]);
+  for (const res of both) {
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ paused: true });
+  }
+  await new Promise((r) => setTimeout(r, 1500));
+  const since = sa.events.slice(from);
+  expect(since.filter((e) => e.event === "tick"), "a turn resolved while paused").toHaveLength(0);
+  expect(since.filter((e) => e.event === "pause"), "told about the pause once").toHaveLength(1);
+  const log = ((await (await fetch(url("/api/log"))).json()).events as any[]).filter((e) => e.detail.arena === id);
+  expect(log.filter((e) => e.event === "pause"), "one pause line in the log").toHaveLength(1);
+
+  const again = sa.events.length;
+  const resumes = await Promise.all([pause(a, false), pause(b, false)]);
+  for (const res of resumes) expect(await res.json()).toMatchObject({ paused: false });
+  await nextTick(sa, again);
+  expect(sa.events.slice(again).filter((e) => e.event === "pause")).toHaveLength(1);
+}, 15000);
+
+it.runIf(operatorKey)("counts both choices when two people choose in the same turn at the same moment", async () => {
+  // ADR 0010, 0012: moves are simultaneous by design; the engine resolves them together
+  const { id } = await createArena({ team_size: 2, seed: 120, deadline_seconds: 5 });
+  const a = await newVisitor();
+  const b = await newVisitor();
+  const sa = await watch(a, id);
+  const sb = await watch(b, id);
+  const [snapA, snapB] = await Promise.all([snapshot(sa), snapshot(sb)]);
+  const turn = (await nextTick(sa, sa.events.length, 7000)).data.tick;
+  const from = sa.events.length;
+  const sentAt = Date.now();
+  const sent = await Promise.all([choose(a, STAY, seq++, turn), choose(b, STAY, seq++, turn)]);
+  for (const res of sent) expect(res.status).toBe(204);
+  const next = await nextTick(sa, from, 3000);
+  // the turn resolved long before its 5-second deadline: both people had chosen
+  expect(next.at - sentAt).toBeLessThan(2000);
+  expect(next.data.tick).toBe(turn + 1);
+  const chosen = sa.events.slice(from).filter((e) => e.event === "chosen" && e.data.turn === turn).map((e) => e.data.seat);
+  expect(chosen.sort()).toEqual([snapA.data.you, snapB.data.you].sort());
+}, 20000);
 
 it.runIf(operatorKey)("logs who did what: each line names the person, the arena, the match and the seat", async () => {
   const { id } = await createArena({ team_size: 2, seed: 115, deadline_seconds: 0.5 });
@@ -399,8 +457,8 @@ it.runIf(operatorKey)("logs who did what: each line names the person, the arena,
   const snapA = (await snapshot(sa)).data;
   const sb = await openStream(b, `/arena/events?arena=${id}`);
   const snapB = (await sb.waitFor((e) => e.event === "snapshot", 3000)).data;
-  await fetch(url("/arena/pause"), { method: "POST", headers: { cookie: a } });
-  await fetch(url("/arena/pause"), { method: "POST", headers: { cookie: b } });
+  await pause(a, true);
+  await pause(b, false);
   sb.close();
   await new Promise((r) => setTimeout(r, 500)); // the log is written just after
 
@@ -416,7 +474,7 @@ it.runIf(operatorKey)("logs who did what: each line names the person, the arena,
 }, 15000);
 
 it("doesn't let someone without a seat pause anything", async () => {
-  expect((await fetch(url("/arena/pause"), { method: "POST", headers: { cookie: await newVisitor() } })).status).toBe(409);
+  expect((await pause(await newVisitor(), true)).status).toBe(409);
 });
 
 it("answers 400, not 500, to a POST whose body isn't a JSON object", async () => {
@@ -447,6 +505,6 @@ it.runIf(operatorKey)("doesn't let someone whose page is closed pause, though th
   page.close();
   await new Promise((r) => setTimeout(r, 300)); // well inside the 5-second grace period
 
-  expect((await fetch(url("/arena/pause"), { method: "POST", headers: { cookie: me } })).status).toBe(409);
+  expect((await pause(me, true)).status).toBe(409);
   await nextTick(watcher, watcher.events.length); // not paused: turns carry on
 }, 10000);

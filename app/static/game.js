@@ -148,10 +148,20 @@
     if (!p.paused) lastTick = performance.now(); // the turn starts again from now
     moment(`${p.by} ${p.paused ? "paused" : "resumed"} the match`);
   });
+  // The request says what the button shows (ADR 0022): Pause asks for a
+  // paused match, Resume for a running one, so two people pressing Pause at
+  // once both get a paused match instead of undoing each other.
   async function togglePause() {
     if (you === null) return;
-    const res = await fetch("/arena/pause", { method: "POST" });
-    if (res.ok) showPause((await res.json()).paused ? "you" : null);
+    const res = await fetch("/arena/pause", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ paused: !pausedBy }),
+    });
+    if (res.ok) {
+      const p = await res.json();
+      showPause(p.paused ? (p.by === me ? "you" : p.by) : null);
+    }
   }
   $("pause")?.addEventListener("click", togglePause);
   document.addEventListener("keydown", (e) => {

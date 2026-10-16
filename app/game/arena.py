@@ -434,8 +434,10 @@ class Hall:
             if self.on_log:
                 self.on_log("leave", page.visitor_id, {**arena.where(), "bench": True})
 
-    def toggle_pause(self, visitor_id: str) -> dict | None:
-        """Pause the visitor's match, or resume it if it is paused (ADR 0015).
+    def set_pause(self, visitor_id: str, paused: bool) -> dict | None:
+        """Pause the visitor's match or let it run, as they asked (ADR 0015,
+        0022). Asking for the state the match is already in changes nothing and
+        is neither told nor logged, so two people pressing Pause at once agree.
         Anyone with a seat and the page open may do either (ADR 0016). Returns
         None if they have no seat, or their page is closed: the seat is kept
         for them through the grace period, but they can't see the match."""
@@ -443,18 +445,18 @@ class Hall:
         i = arena.seat_of(visitor_id) if arena and arena.state else None
         if i is None or arena.kind == "watch" or arena.seats[i].pages == 0:
             return None
+        if paused == bool(arena.paused_by):  # already as asked
+            return {"paused": paused, "by": label(arena.paused_by) if arena.paused_by else None}
         now = time.monotonic()
-        if arena.paused_by:
+        if not paused:
             arena.paused_by = None
             arena.turn_opened = now
             for seat in arena.seats:  # a long pause shouldn't make anyone look idle
                 seat.last_input = now
                 if seat.pages == 0 and seat.owner:
                     seat.left_at = now
-            paused = False
         else:
             arena.paused_by = visitor_id
-            paused = True
         arena.tell_all("pause", {"paused": paused, "by": label(visitor_id), "seat": i})
         if self.on_log and arena.match_id is not None:
             self.on_log("pause" if paused else "resume", visitor_id, arena.where(i))

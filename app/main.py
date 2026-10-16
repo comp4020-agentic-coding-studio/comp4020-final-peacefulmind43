@@ -206,10 +206,14 @@ async def arena_input(request: Request):
 
 @app.post("/arena/pause")
 async def arena_pause(request: Request):
-    """Pause your match, or resume it if it's paused (ADR 0015)."""
-    await json_object(request)  # no fields, but a broken body is still refused
+    """Pause your match or let it run (ADR 0015). The request says which, so two
+    people asking for the same thing at once agree instead of undoing each
+    other (ADR 0022)."""
+    wanted = (await json_object(request)).get("paused")
+    if not isinstance(wanted, bool):
+        raise HTTPException(400, "Send paused: true to pause the match, or false to let it run.")
     me = request.cookies.get(COOKIE)
-    result = hall.toggle_pause(me) if me else None
+    result = hall.set_pause(me, wanted) if me else None
     if result is None:
         raise HTTPException(409, "Only someone with a seat in a match, and the page open, can pause it.")
     return result

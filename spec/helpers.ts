@@ -90,6 +90,15 @@ export async function choose(cookie: string, dir: number, seq: number, turn?: nu
   });
 }
 
+// ADR 0015, 0022: ask for the match to be paused (true) or running (false).
+export async function pause(cookie: string | undefined, paused: boolean): Promise<Response> {
+  return fetch(url("/arena/pause"), {
+    method: "POST",
+    headers: { "content-type": "application/json", ...(cookie ? { cookie } : {}) },
+    body: JSON.stringify({ paused }),
+  });
+}
+
 export interface StreamEvent {
   event: string;
   data: any;
