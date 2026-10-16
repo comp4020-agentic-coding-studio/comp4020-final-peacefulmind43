@@ -75,6 +75,8 @@ team, and trains with PPO against the scripted bots. Three lessons
   move was applied unmirrored, so half of every batch taught the opposite of
   the other half. A new test checks what the same choice means for each side.
 
+A one-page summary of the RL work, with results, is in [`doc/rl/README.md`](doc/rl/README.md).
+
 ## Many people, one match: who may change what
 
 Several people act on one match at once, so the server decides who may do what
