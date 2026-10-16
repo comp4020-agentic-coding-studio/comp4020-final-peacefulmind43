@@ -12,6 +12,8 @@ import hashlib
 import json
 import time
 
+from .requestlog import request_id
+
 subscribers: set[asyncio.Queue] = set()
 
 KINDS = {"visit", "readme", "join", "leave", "takeover", "reclaim", "match_end", "watch_start", "watch_end",
@@ -47,6 +49,9 @@ def record(conn, kind: str, visitor_id: str | None, detail: dict | None = None) 
     if kind not in KINDS:
         raise ValueError(f"unknown kind of event: {kind}")
     detail = detail or {}
+    rid = request_id.get()  # the request that caused it, if any (week 10); tick-time events have none
+    if rid and "request" not in detail:
+        detail = {**detail, "request": rid}
     at = int(time.time())
     cur = conn.execute(
         "INSERT INTO events (at, visitor_id, round_id, kind, detail) VALUES (?, ?, NULL, ?, ?)",

@@ -18,7 +18,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from . import activity, db
+from . import activity, db, requestlog
 from .game import engine, study
 from .game.arena import Hall
 from .game.store import Store
@@ -87,6 +87,8 @@ async def lifespan(_: FastAPI):
 
 app = FastAPI(lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
 app.mount("/static", StaticFiles(directory=HERE / "static"), name="static")
+# one line per request, with an id that also tags the events it logs (week 10)
+app.add_middleware(requestlog.RequestLog, cookie=COOKIE, label=activity.visitor_label)
 templates = Jinja2Templates(directory=HERE / "templates")
 
 
@@ -197,7 +199,7 @@ async def arena_input(request: Request):
     if info["accepted"]:
         at = int(time.time())
         name, move = activity.visitor_label(me), MOVES[direction]
-        print(json.dumps({"event": "choice", "visitor": name, "at": at, "arena": info["arena"], "match": info["match"],
+        print(json.dumps({"event": "choice", "request": requestlog.request_id.get(), "visitor": name, "at": at, "arena": info["arena"], "match": info["match"],
                           "turn": info["turn"], "seat": info["seat"], "dir": direction, "move": move,
                           "text": f"{name} chose {move} for player {info['seat'] + 1}, turn {info['turn']}"}), flush=True)
         if info["match"] is not None:

@@ -18,4 +18,4 @@ COPY app/ app/
 COPY README.md .
 
 # exec, so uvicorn gets signals directly and shuts down cleanly on a redeploy
-CMD ["sh", "-c", "exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8080} --proxy-headers --forwarded-allow-ips='*'"]
+CMD ["sh", "-c", "exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8080} --proxy-headers --forwarded-allow-ips='*' --no-access-log"]
