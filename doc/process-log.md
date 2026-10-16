@@ -614,3 +614,46 @@ in the shared arena is now scripted, cur4 or fcp1, so `/study` compares all
 three with real people. cur4 stays on the server for that. ADR 0018 is now
 accepted (2026-10-14). It was merged as proposed, and a proposed record may
 be finalised, so only its status line changed.
+
+## 2026-10-16: teaching fcp1 to let its partners score (ADR 0020)
+
+fcp1 is strong beside any partner, but it does everything itself: beside the
+held-out partners, they score 0.00 to 0.05 captures a game. So I wrote ADR
+0020. The bot keeps the team reward and FCP-lite, and gets two new terms:
+
+- a potential-based reward for its partners' progress: when a partner gets
+  closer to scoring, the bot gets a small reward; when a partner is caught,
+  it loses it. This form can't be farmed and does not change the best
+  policy (Ng et al. 1999);
+- a small bonus (0.3) when a partner captures. This one is not
+  potential-based, so it falls to 0 at 75% of training.
+
+fcp1 joins the training pool (cur4 was already in it). The held-out partners
+stay the same. Before training, the ADR writes down the bar: the partners'
+share of captures must be higher than with fcp1 beside at least two of the
+three held-out partners, with 95% bootstrap intervals that don't overlap;
+losses not clearly higher; and no drop against the full scripted bot. A test
+plays each game and its mirror and checks blue and red get the same reward.
+
+**The slow update was not the new code.** An earlier try saw some updates
+take 89 s or 155 s instead of 7 s. I profiled before changing anything. The
+environment alone with the new terms runs 5,900 samples a second, against
+6,200 without them; the shortest-path searches stay cached (98% hits). Most
+smoke updates took 7 s, the same as fcp1, and the slow ones were single
+spikes, so the cause was outside the code (the Mac was busy or idle-sleeping
+then). I can't prove which. To see it next time, `metrics.csv` now logs the
+rollout time and the update time of every update. In a new 2M-sample smoke
+run they were steady: about 5 s for the rollout and 2 s for the update,
+2,850 samples a second overall (fcp1: 2,845).
+
+**Smoke test** (2M samples from fcp1, 100 unseen maps, same seat as fcp1).
+NumPy and PyTorch agree (1.9e-6). Against the full scripted bot it wins
+49.0% and loses 2.0%. Beside the held-out partners, it plays like fcp1:
+the partners' share of captures is 0.0% (fcp1 0.8%) with scripted30, 4.2%
+(fcp1 5.6%) with cur3, and 0% for both with lr1e3. That is expected after
+2M samples; it shows the pipeline and the new measures work, not a result.
+The tests pass (37 passed, with the new team-play tests).
+
+**The real run** is `team1`: 82M samples from fcp1, seed 13, about 8 hours.
+`rl/after_team.sh team1` waits for it, checks the export, and writes
+`rl/runs/team1/eval.txt` with team1 and fcp1 side by side on 400 unseen maps.
