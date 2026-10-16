@@ -1,6 +1,7 @@
 # 0020. Team play: reward the bot for its partners' progress
 
-Status: proposed (2026-10-16). Extends ADR 0018 (FCP-lite training) and the
+Status: rejected (2026-10-16). Proposed 2026-10-16; finalised after team1
+failed bar 1 (see Result). fcp1 stays the deployed bot. Extends ADR 0018 (FCP-lite training) and the
 reward of ADR 0013; the observation, network and serving are unchanged.
 
 ## Context
@@ -117,3 +118,41 @@ numbers go in the process log as they are.
   about 5 s and an update about 2 s, now logged per update in `metrics.csv`.
 - The pool still has no person in it. This shows a better partner for
   programs the bot never trained with, by behaviour; people are the real test.
+
+## Result
+
+team1 trained for 82M samples as planned. `rl/after_team.sh team1` wrote the
+evaluation, kept in the repo as [`doc/rl/team1-eval.txt`](../rl/team1-eval.txt)
+(fcp1's own evaluation: [`doc/rl/fcp1-eval.txt`](../rl/fcp1-eval.txt)). NumPy
+and PyTorch agree (1.9e-6). Against the bar written above:
+
+1. **Failed.** The partners' share of captures is *lower* with team1, not
+   higher: beside scripted30 0.4% [0.1, 1.0] against fcp1's 1.5% [0.6, 2.7];
+   beside cur3 2.3% [1.3, 3.4] against 4.2% [2.6, 6.0]; beside lr1e3 0% for
+   both. Beside the scripted bot in the pool it is 8.9% [7.1, 10.8] against
+   16.6% [13.5, 20.3].
+2. **Passed.** Losses beside scripted30, cur3 and lr1e3 are 20.2%, 40.2% and
+   5.5% for team1 against 22.2%, 32.2% and 14.0% for fcp1. Beside cur3,
+   team1 loses more, but the Wilson intervals overlap ([35.6, 45.1] against
+   [27.9, 37.0]), so it is not wholly above.
+3. **Passed strongly.** With team1 on every seat against the full scripted
+   bot, it wins 97.2% [95.1, 98.5] and loses 0.8%; fcp1 wins 48.5% and loses
+   2.2%.
+
+**Reading.** team1 became a much stronger lone wolf, not a team player. It
+spends 32 to 51% of turns on the enemy half (fcp1 14 to 21%) and scores 1.9
+to 2.8 captures a game beside the held-out partners, nearly all its own (its
+partners 0.00 to 0.04). The two new terms could not change this. The
+partner-capture bonus fell to 0 at 75% of training, so the last quarter
+trained on the team reward alone. The partner-progress term is
+potential-based, so by design it cannot change which policy is best. When
+the lone wolf is the best policy for the team reward, neither term can teach
+a division of labour. Ideas that could: an objective that values partners'
+scoring for itself (not annealed), partner intent in the observation
+(option 5), or training with human-like partners.
+
+**Not deployed.** As the bot that fills seats and plays the opponents,
+team1 would be far too strong for people (97% of wins against the scripted
+bot), against the README's idea of a fair game; and as a teammate it is no
+better than fcp1. fcp1 stays the deployed bot. team1's checkpoints stay in
+`rl/runs/team1/` (not in git).

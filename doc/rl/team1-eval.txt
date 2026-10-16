@@ -1,0 +1,28 @@
+== team1, evaluated 2026-10-16 22:57
+-- NumPy export agrees with PyTorch
+max abs difference 1.9073486328125e-06
+-- against the full scripted bot, 400 unseen maps
+team1 vs scripted        win 97.2% [95.1%, 98.5%]  draw  2.0%  loss  0.8%  captures 2.88 for, 0.15 against  (400 games)
+fcp1 vs scripted         win 48.5% [43.6%, 53.4%]  draw 49.2%  loss  2.2%  captures 1.43 for, 0.24 against  (400 games)
+scripted vs scripted     win 29.2% [25.0%, 33.9%]  draw 43.0%  loss 27.8%  captures 0.69 for, 0.68 against  (400 games)
+-- teammate: one seat, held-out partners (and the scripted bot, in the pool), vs the full scripted team
+partner scripted30 (scripted:0.3, held out), 400 games against the full scripted team:
+  team1      win 70.2% [65.6%, 74.5%] draw  9.5% [7.0%, 12.8%] loss 20.2% [16.6%, 24.5%]  captures 2.31 for, 1.04 against; by bot 2.30, by partners 0.01; bot on their half 37% of turns, caught 1.70/game
+             partners' share of captures 0.4% [0.1%, 1.0%]; escort 6% of 7.1 partner-carrier turns/game; home while a partner attacks 66%; enemy carriers tagged 3.46/game
+  fcp1       win 43.5% [38.7%, 48.4%] draw 34.2% [29.8%, 39.0%] loss 22.2% [18.4%, 26.6%]  captures 1.33 for, 0.67 against; by bot 1.31, by partners 0.02; bot on their half 18% of turns, caught 1.87/game
+             partners' share of captures 1.5% [0.6%, 2.7%]; escort 4% of 7.7 partner-carrier turns/game; home while a partner attacks 87%; enemy carriers tagged 5.57/game
+partner cur3 (net:rl/runs/pool/cur3.pt, held out), 400 games against the full scripted team:
+  team1      win 48.8% [43.9%, 53.6%] draw 11.0% [8.3%, 14.4%] loss 40.2% [35.6%, 45.1%]  captures 1.98 for, 1.72 against; by bot 1.93, by partners 0.04; bot on their half 32% of turns, caught 1.31/game
+             partners' share of captures 2.3% [1.3%, 3.4%]; escort 11% of 3.9 partner-carrier turns/game; home while a partner attacks 57%; enemy carriers tagged 5.59/game
+  fcp1       win 36.5% [31.9%, 41.3%] draw 31.2% [26.9%, 36.0%] loss 32.2% [27.9%, 37.0%]  captures 1.25 for, 1.08 against; by bot 1.20, by partners 0.05; bot on their half 14% of turns, caught 1.13/game
+             partners' share of captures 4.2% [2.6%, 6.0%]; escort 14% of 3.6 partner-carrier turns/game; home while a partner attacks 65%; enemy carriers tagged 8.84/game
+partner lr1e3 (net:rl/runs/pool/lr1e3.npz, held out), 400 games against the full scripted team:
+  team1      win 91.0% [87.8%, 93.4%] draw  3.5% [2.1%, 5.8%] loss  5.5% [3.7%, 8.2%]  captures 2.79 for, 0.56 against; by bot 2.79, by partners 0.00; bot on their half 51% of turns, caught 1.44/game
+             partners' share of captures 0.0% [0.0%, 0.0%]; escort 0% of 0.0 partner-carrier turns/game; home while a partner attacks 60%; enemy carriers tagged 0.97/game
+  fcp1       win 48.2% [43.4%, 53.1%] draw 37.8% [33.1%, 42.6%] loss 14.0% [10.9%, 17.7%]  captures 1.45 for, 0.32 against; by bot 1.45, by partners 0.00; bot on their half 19% of turns, caught 1.82/game
+             partners' share of captures 0.0% [0.0%, 0.0%]; escort 0% of 0.0 partner-carrier turns/game; home while a partner attacks 94%; enemy carriers tagged 2.76/game
+partner scripted (scripted, in the training pool), 400 games against the full scripted team:
+  team1      win 79.2% [75.0%, 82.9%] draw 12.0% [9.2%, 15.6%] loss  8.8% [6.4%, 11.9%]  captures 2.45 for, 0.62 against; by bot 2.23, by partners 0.22; bot on their half 40% of turns, caught 1.89/game
+             partners' share of captures 8.9% [7.1%, 10.8%]; escort 8% of 26.1 partner-carrier turns/game; home while a partner attacks 62%; enemy carriers tagged 2.81/game
+  fcp1       win 55.8% [50.9%, 60.5%] draw 33.5% [29.1%, 38.3%] loss 10.8% [8.1%, 14.2%]  captures 1.50 for, 0.46 against; by bot 1.25, by partners 0.25; bot on their half 21% of turns, caught 2.37/game
+             partners' share of captures 16.6% [13.5%, 20.3%]; escort 6% of 35.5 partner-carrier turns/game; home while a partner attacks 84%; enemy carriers tagged 4.01/game

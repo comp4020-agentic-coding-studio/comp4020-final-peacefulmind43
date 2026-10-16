@@ -1,0 +1,20 @@
+== fcp1, evaluated 2026-10-14 00:48
+-- NumPy export agrees with PyTorch
+max abs difference 9.5367431640625e-07
+-- against the full scripted bot, 400 unseen maps
+fcp1 vs scripted         win 48.5% [43.6%, 53.4%]  draw 49.2%  loss  2.2%  captures 1.43 for, 0.24 against  (400 games)
+cur4 vs scripted         win 48.2% [43.4%, 53.1%]  draw 45.8%  loss  6.0%  captures 1.44 for, 0.10 against  (400 games)
+scripted vs scripted     win 29.2% [25.0%, 33.9%]  draw 43.0%  loss 27.8%  captures 0.69 for, 0.68 against  (400 games)
+-- teammate: one seat, held-out partners (and the scripted bot, in the pool), vs the full scripted team
+partner scripted30 (scripted:0.3, held out), 400 games against the full scripted team:
+  fcp1       win 43.5% [38.7%, 48.4%] draw 34.2% [29.8%, 39.0%] loss 22.2% [18.4%, 26.6%]  captures 1.33 for, 0.67 against; by bot 1.31, by partners 0.02; bot on their half 18% of turns, caught 1.87/game
+  cur4       win 22.8% [18.9%, 27.1%] draw 24.2% [20.3%, 28.7%] loss 53.0% [48.1%, 57.8%]  captures 0.94 for, 1.34 against; by bot 0.93, by partners 0.01; bot on their half 11% of turns, caught 1.08/game
+partner cur3 (net:rl/runs/pool/cur3.pt, held out), 400 games against the full scripted team:
+  fcp1       win 36.5% [31.9%, 41.3%] draw 31.2% [26.9%, 36.0%] loss 32.2% [27.9%, 37.0%]  captures 1.25 for, 1.08 against; by bot 1.20, by partners 0.05; bot on their half 14% of turns, caught 1.13/game
+  cur4       win  4.8% [3.1%, 7.3%] draw 17.5% [14.1%, 21.5%] loss 77.8% [73.4%, 81.6%]  captures 0.58 for, 2.00 against; by bot 0.53, by partners 0.05; bot on their half 9% of turns, caught 0.99/game
+partner lr1e3 (net:rl/runs/pool/lr1e3.npz, held out), 400 games against the full scripted team:
+  fcp1       win 48.2% [43.4%, 53.1%] draw 37.8% [33.1%, 42.6%] loss 14.0% [10.9%, 17.7%]  captures 1.45 for, 0.32 against; by bot 1.45, by partners 0.00; bot on their half 19% of turns, caught 1.82/game
+  cur4       win 44.5% [39.7%, 49.4%] draw 27.0% [22.9%, 31.6%] loss 28.5% [24.3%, 33.1%]  captures 1.36 for, 0.79 against; by bot 1.36, by partners 0.00; bot on their half 13% of turns, caught 1.02/game
+partner scripted (scripted, in the training pool), 400 games against the full scripted team:
+  fcp1       win 55.8% [50.9%, 60.5%] draw 33.5% [29.1%, 38.3%] loss 10.8% [8.1%, 14.2%]  captures 1.50 for, 0.46 against; by bot 1.25, by partners 0.25; bot on their half 21% of turns, caught 2.37/game
+  cur4       win 36.2% [31.7%, 41.1%] draw 34.5% [30.0%, 39.3%] loss 29.2% [25.0%, 33.9%]  captures 1.17 for, 0.86 against; by bot 0.91, by partners 0.27; bot on their half 10% of turns, caught 0.92/game

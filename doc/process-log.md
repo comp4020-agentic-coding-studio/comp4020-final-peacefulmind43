@@ -704,3 +704,40 @@ The tests pass (37 passed, with the new team-play tests).
 **The real run** is `team1`: 82M samples from fcp1, seed 13, about 8 hours.
 `rl/after_team.sh team1` waits for it, checks the export, and writes
 `rl/runs/team1/eval.txt` with team1 and fcp1 side by side on 400 unseen maps.
+
+## 2026-10-17: team1 fails its bar, and fcp1 stays
+
+The team1 run finished (82M samples from fcp1). NumPy and PyTorch agree
+(1.9e-6). The full evaluation is in `doc/rl/team1-eval.txt`, next to
+fcp1's in `doc/rl/fcp1-eval.txt`. Against the bar in ADR 0020:
+
+| bar | team1 | fcp1 | result |
+|---|---|---|---|
+| partners' share, scripted30 | 0.4% [0.1, 1.0] | 1.5% [0.6, 2.7] | lower |
+| partners' share, cur3 | 2.3% [1.3, 3.4] | 4.2% [2.6, 6.0] | lower |
+| partners' share, lr1e3 | 0% | 0% | same |
+| partners' share, scripted (in pool) | 8.9% [7.1, 10.8] | 16.6% [13.5, 20.3] | lower |
+| losses, scripted30 / cur3 / lr1e3 | 20.2 / 40.2 / 5.5% | 22.2 / 32.2 / 14.0% | not clearly higher |
+| every seat vs full scripted: win / loss | 97.2% [95.1, 98.5] / 0.8% | 48.5% / 2.2% | much better |
+
+**Bar 1 failed**: the partners score a smaller share with team1, not a
+bigger one. Bar 2 passed: beside cur3 team1 loses more, but the intervals
+overlap. Bar 3 passed strongly.
+
+**What it learned.** team1 is a much stronger lone wolf. It spends 32 to 51%
+of turns on the enemy half (fcp1 14 to 21%) and scores 1.9 to 2.8 captures a
+game, nearly all of them itself. I think I see why the new terms did not
+help. The partner-capture bonus fell to 0 at 75% of training, so the last
+quarter was the team reward alone. The partner-progress term is
+potential-based, so by design it can't change which policy is best. If
+doing everything alone is the best policy for the team reward, neither term
+can teach the bots to split the work. Things that could: a goal that values
+partners' scoring for itself (not faded out), the partners' intent in the
+observation, or training with partners that play more like people.
+
+**I decided not to deploy team1.** As the bot that fills seats and plays the
+opponents, it would be far too strong for people (97% wins against the
+scripted bot), and the README asks for a fair game. As a teammate it is no
+better than fcp1. So fcp1 stays. ADR 0020 is now rejected (2026-10-16), with
+a Result section; it was merged as proposed, and a proposed record may be
+finalised. This is a negative result, and I keep it as one.
