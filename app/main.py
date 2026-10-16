@@ -109,9 +109,21 @@ def visitor(request: Request) -> tuple[str, bool]:
     return (existing, False) if existing else (secrets.token_urlsafe(18), True)
 
 
-def remember(response, visitor_id: str, new: bool):
-    if new:
-        response.set_cookie(COOKIE, visitor_id, max_age=60 * 60 * 24 * 365, httponly=True, samesite="lax")
+def served_over_https(request: Request) -> bool:
+    """Fly ends TLS and passes the request on over http, saying so in
+    x-forwarded-proto; uvicorn's --proxy-headers also puts it in the scheme."""
+    return request.url.scheme == "https" or request.headers.get("x-forwarded-proto", "").split(",")[0].strip() == "https"
+
+
+def remember(request: Request, response, visitor_id: str, new: bool):
+    """Set the visitor cookie: HttpOnly (no script reads it), SameSite=Lax (not
+    sent by other sites' forms), and Secure when the page came over https, so
+    it never travels in the clear. Over plain http, as on a laptop, Secure
+    would stop the browser sending it back, so it is left off there. Over
+    https an older cookie is set again, so cookies made before Secure get it."""
+    secure = served_over_https(request)
+    if new or secure:
+        response.set_cookie(COOKIE, visitor_id, max_age=60 * 60 * 24 * 365, httponly=True, samesite="lax", secure=secure)
     return response
 
 
@@ -142,7 +154,7 @@ async def home(request: Request):
     me, new = visitor(request)
     with db.connect() as conn:
         activity.record(conn, "visit", me)
-    return remember(templates.TemplateResponse(request, "game.html", {}), me, new)
+    return remember(request, templates.TemplateResponse(request, "game.html", {}), me, new)
 
 
 @app.get("/readme/", response_class=HTMLResponse)
@@ -180,7 +192,7 @@ async def arena_events(request: Request, arena: str | None = None):
     response = StreamingResponse(
         stream(), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
     )
-    return remember(response, me, new)
+    return remember(request, response, me, new)
 
 
 MOVES = ("stay", "up", "down", "right", "left")  # engine actions 0-4, as the page's buttons name them
@@ -496,7 +508,7 @@ async def me_page(request: Request):
         matches = [] if new else my_matches(conn, me)
     for m in matches:
         m["date"] = time.strftime("%Y-%m-%d %H:%M UTC", time.gmtime(m["ended_at"] or 0))
-    return remember(templates.TemplateResponse(
+    return remember(request, templates.TemplateResponse(
         request, "me.html", {"label": activity.visitor_label(me), "matches": matches}), me, new)
 
 

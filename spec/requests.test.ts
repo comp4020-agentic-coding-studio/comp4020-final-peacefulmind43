@@ -46,3 +46,24 @@ it.runIf(operatorKey)("tags an event logged during a request with that request's
     s.close();
   }
 });
+
+// Week 10: the visitor cookie is HttpOnly and SameSite=Lax always, and Secure
+// when the page was served over https (Fly ends TLS and says so in
+// x-forwarded-proto). Over plain http, as on a laptop, Secure would stop the
+// browser sending it back, so it is left off there.
+const attributes = (res: Response) =>
+  (res.headers.get("set-cookie") ?? "").split(";").slice(1).map((a) => a.trim().toLowerCase());
+
+it("sets the visitor cookie HttpOnly and SameSite=Lax, without Secure over plain http", async () => {
+  const set = attributes(await fetch(url("/")));
+  expect(set).toContain("httponly");
+  expect(set).toContain("samesite=lax");
+  expect(set, "a Secure cookie would never come back over http").not.toContain("secure");
+});
+
+it("adds Secure to the visitor cookie when the page was served over https", async () => {
+  const set = attributes(await fetch(url("/"), { headers: { "x-forwarded-proto": "https" } }));
+  expect(set).toContain("secure");
+  expect(set).toContain("httponly");
+  expect(set).toContain("samesite=lax");
+});
