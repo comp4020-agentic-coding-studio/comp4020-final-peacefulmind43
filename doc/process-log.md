@@ -614,3 +614,14 @@ in the shared arena is now scripted, cur4 or fcp1, so `/study` compares all
 three with real people. cur4 stays on the server for that. ADR 0018 is now
 accepted (2026-10-14). It was merged as proposed, and a proposed record may
 be finalised, so only its status line changed.
+
+## 2026-10-16: playing alone still has the deadline
+
+A reading-list pass found a mismatch in ADR 0012. Its options text said
+that alone you could play at your own pace and stop to think, but its
+decision kept the 2-second deadline for solo play too, and the game works
+that way. ADR 0012 is merged, so I did not edit it. A new record (ADR 0021)
+clarifies it: playing alone keeps the deadline, and the pause button (ADR
+0015) is the way to stop and think. It also notes the cost against WCAG
+2.2.1 (Timing Adjustable): the deadline can't be made longer without pausing.
+I may revisit this with a per-player setting.
