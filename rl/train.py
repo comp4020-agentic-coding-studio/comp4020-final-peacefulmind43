@@ -18,6 +18,14 @@ and partners drawn from rl/partners.TRAIN_POOL play the rest; opponents are the
 full scripted bot or a pool member. The curriculum is off; start from cur4:
 
     python rl/train.py --name fcp1 --fcp --init rl/runs/pool/cur4.pt --shaping-frac 0
+
+Team play (ADR 0020): FCP-lite with the pool that also has fcp1, plus
+potential-based shaping on the teammates' progress (--mate-weight, constant)
+and a bonus for each teammate capture (--mate-bonus, fading to 0 at
+--mate-bonus-frac of training); start from fcp1:
+
+    python rl/train.py --name team1 --fcp --pool team --init rl/runs/pool/fcp1.pt --shaping-frac 0 \\
+        --mate-weight 0.5 --mate-bonus 0.3 --mate-bonus-frac 0.75
 """
 
 from __future__ import annotations
@@ -61,6 +69,10 @@ def main() -> None:
     ap.add_argument("--start-level", type=float, default=0.0, help="the curriculum level to start at")
     ap.add_argument("--fcp", action="store_true", help="FCP-lite: partners from the pool (ADR 0018)")
     ap.add_argument("--p-pool-opp", type=float, default=0.4, help="FCP: chance the opponents are a pool member, not the full scripted bot")
+    ap.add_argument("--pool", default="fcp", choices=("fcp", "team"), help="FCP: which partner pool (rl/partners.POOLS)")
+    ap.add_argument("--mate-weight", type=float, default=0.0, help="ADR 0020: weight of the shaping on teammates' progress")
+    ap.add_argument("--mate-bonus", type=float, default=0.0, help="ADR 0020: bonus per teammate capture, annealed")
+    ap.add_argument("--mate-bonus-frac", type=float, default=0.75, help="the teammate bonus reaches 0 at this fraction of training")
     ap.add_argument("--keep-every", type=int, default=0, help="also keep checkpoint_<update>.pt every this many updates")
     ap.add_argument("--init", help="start from this checkpoint instead of from scratch")
     ap.add_argument("--device", default="mps" if torch.backends.mps.is_available() else "cpu",
@@ -77,7 +89,7 @@ def main() -> None:
     if args.fcp:
         import partners
 
-        pool = partners.make(partners.TRAIN_POOL)
+        pool = partners.make(partners.POOLS[args.pool])
         batch = FcpBatch(args.games, seed=args.seed, pool=pool, p_pool_opp=args.p_pool_opp)
         args.level_step = 0.0  # no curriculum: the pool is the variety
     else:
@@ -114,7 +126,7 @@ def main() -> None:
     log = open(out / "metrics.csv", "w", newline="")
     writer = csv.writer(log)
     writer.writerow(["update", "samples", "seconds", "samples_per_s", "level", "shaping", "lr", "games", "win", "draw", "loss_rate",
-                     "captures", "policy_loss", "value_loss", "entropy", "approx_kl", "clip_frac"])
+                     "captures", "policy_loss", "value_loss", "entropy", "approx_kl", "clip_frac", "rollout_s", "update_s"])
     start = time.time()
     samples = 0
     done_prev = np.zeros(rows, dtype=np.float32)
@@ -122,10 +134,13 @@ def main() -> None:
     for update in range(1, updates + 1):
         frac = (update - 1) / updates
         shaping = max(0.0, 1.0 - frac / args.shaping_frac) if args.shaping_frac > 0 else 0.0
+        mate_bonus = args.mate_bonus * max(0.0, 1.0 - frac / args.mate_bonus_frac) if args.mate_bonus_frac > 0 else 0.0
+        team_terms = {"mate_weight": args.mate_weight, "mate_bonus": mate_bonus} if args.fcp else {}
         lr = args.lr * (1.0 - frac)
         for g in opt.param_groups:
             g["lr"] = lr
 
+        t_roll = time.time()
         for t in range(T):
             buf_planes[t] = planes
             buf_scalars[t] = scalars
@@ -137,7 +152,7 @@ def main() -> None:
             buf_actions[t] = action.numpy()
             buf_logp[t] = dist.log_prob(action).numpy()
             buf_values[t] = value.numpy()
-            rewards, dones, finished = batch.step(action.numpy(), owner, args.gamma, shaping, level)
+            rewards, dones, finished = batch.step(action.numpy(), owner, args.gamma, shaping, level, **team_terms)
             buf_rewards[t] = rewards
             done_prev = dones
             for info in finished:
@@ -154,6 +169,8 @@ def main() -> None:
             planes, scalars, owner = batch.observe()
             samples += rows
 
+        t_upd = time.time()
+        roll_s = t_upd - t_roll
         # generalised advantage estimation, bootstrapped from the last state
         with torch.no_grad():
             _, last_value = net(torch.from_numpy(planes), torch.from_numpy(scalars))
@@ -203,6 +220,7 @@ def main() -> None:
                 stats.append((pg.item(), vl.item(), ent.item(), kl, clipped))
 
         actor.load_state_dict({k: v.cpu() for k, v in learner.state_dict().items()})
+        upd_s = time.time() - t_upd
         secs = time.time() - start
         pg_l, v_l, ent_v, kl_v, clip_v = np.mean(stats, axis=0)
         games = len(results)
@@ -212,10 +230,10 @@ def main() -> None:
         caps = float(np.mean(captures)) if captures else float("nan")
         writer.writerow([update, samples, round(secs), round(samples / secs), level, round(shaping, 3), f"{lr:.2e}", games,
                          round(win, 3), round(draw, 3), round(lose, 3), round(caps, 2),
-                         round(pg_l, 4), round(v_l, 4), round(ent_v, 3), round(kl_v, 4), round(clip_v, 3)])
+                         round(pg_l, 4), round(v_l, 4), round(ent_v, 3), round(kl_v, 4), round(clip_v, 3), round(roll_s, 2), round(upd_s, 2)])
         log.flush()
         if update % 5 == 0 or update == updates:
-            print(f"update {update}/{updates}  samples {samples:,}  {samples / secs:,.0f}/s  level {level:.1f}  shaping {shaping:.2f}  "
+            print(f"update {update}/{updates}  samples {samples:,}  {samples / secs:,.0f}/s  level {level:.1f}  shaping {shaping:.2f}  mate bonus {mate_bonus:.2f}  "
                   f"last {games} games {'with the pool' if args.fcp else 'vs scripted'}: win {win:.2f} draw {draw:.2f} lose {lose:.2f}  captures {caps:.2f}  "
                   f"entropy {ent_v:.2f}", flush=True)
         if args.fcp and (update % 25 == 0 or update == updates):

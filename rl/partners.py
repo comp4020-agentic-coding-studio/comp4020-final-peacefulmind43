@@ -49,6 +49,11 @@ TRAIN_POOL = {
     "random": "random:0.5",
 }
 
+# The team-play pool (ADR 0020): ADR 0018's pool plus fcp1, the deployed
+# bot (strong, but scores nearly everything itself). cur4 is already in it.
+TEAM_POOL = {**TRAIN_POOL, "fcp1": f"net:{POOL_DIR / 'fcp1.pt'}"}
+POOLS = {"fcp": TRAIN_POOL, "team": TEAM_POOL}
+
 # Held out: never a partner or an opponent in training.
 HELD_OUT = {
     "scripted30": "scripted:0.3",                  # a noise level not in the pool

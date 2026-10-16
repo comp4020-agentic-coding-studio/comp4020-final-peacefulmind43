@@ -63,6 +63,33 @@ def potential(state: engine.State, seat: int) -> float:
     return -remaining / scale
 
 
+def team_potentials(state: engine.State, team: int) -> dict[int, float]:
+    """`potential` for every seat of one team."""
+    return {i: potential(state, i) for i, p in enumerate(state.players) if p.team == team}
+
+
+def team_play_reward(seat: int, phi_before: dict[int, float], phi_after: dict[int, float], events: list[tuple[str, int]],
+                     gamma: float, mate_weight: float, mate_bonus: float) -> float:
+    """The team-play terms of ADR 0020 for one learner seat, on top of the
+    team reward.
+
+    - mate_weight * mean over its teammates of (gamma * phi(after) - phi(before)):
+      potential-based shaping on the teammates' progress towards scoring
+      (Ng et al. 1999), so it can't be farmed and leaves the best policy for
+      the team reward unchanged;
+    - mate_bonus for each capture by a teammate (not by this seat): not
+      potential-based, so it is annealed to 0 during training.
+
+    phi_* map every seat of the team (this one included) to its potential.
+    Seats, not directions: the same for blue and red (a test checks it)."""
+    mates = [i for i in phi_before if i != seat]
+    if not mates:
+        return 0.0
+    shaped = sum(gamma * phi_after[i] - phi_before[i] for i in mates) / len(mates)
+    caps = sum(1 for ev, who in events if ev == "capture" and who in phi_before and who != seat)
+    return mate_weight * shaped + mate_bonus * caps
+
+
 class Game:
     def __init__(self, rng: random.Random, team_size: int):
         self.rng = rng
@@ -157,11 +184,14 @@ class FcpGame(Game):
         self.partner = self.rng.choice(self.pool)
         self.opponent = self.rng.choice(self.pool) if self.rng.random() < self.p_pool_opp else None  # None: full scripted
         self.phi = [potential(self.state, i) for i in self.seats]
+        self.team_phi = team_potentials(self.state, self.team)
         self.caps_learner = self.caps_partner = 0
 
-    def finish(self, actions: list[int], others: dict[int, int], gamma: float, shaping_weight: float):
+    def finish(self, actions: list[int], others: dict[int, int], gamma: float, shaping_weight: float,
+               mate_weight: float = 0.0, mate_bonus: float = 0.0):
         """Step the game with the learner's view actions and everyone else's
-        engine actions."""
+        engine actions. mate_weight and mate_bonus are ADR 0020's team-play
+        terms (0 gives FCP-lite as in ADR 0018)."""
         s = self.state
         full = [0] * len(s.players)
         for seat, a in zip(self.seats, actions):
@@ -177,12 +207,15 @@ class FcpGame(Game):
                 else:
                     self.caps_partner += 1
         team_reward = (s.score[self.team] - before[self.team]) - (s.score[1 - self.team] - before[1 - self.team])
+        team_phi = team_potentials(s, self.team)
         rewards = []
         for j, seat in enumerate(self.seats):
-            phi_after = potential(s, seat)
+            phi_after = team_phi[seat]
             shaped = gamma * phi_after - self.phi[j]
             self.phi[j] = phi_after
-            rewards.append(float(team_reward) + shaping_weight * shaped)
+            mate = team_play_reward(seat, self.team_phi, team_phi, events, gamma, mate_weight, mate_bonus)
+            rewards.append(float(team_reward) + shaping_weight * shaped + mate)
+        self.team_phi = team_phi
         info = {}
         if s.done:
             mine, theirs = s.score[self.team], s.score[1 - self.team]
@@ -205,7 +238,8 @@ class FcpBatch(Batch):
         self.pool = pool
         self.games = [FcpGame(self.rng, *self.SLOTS[g % len(self.SLOTS)], pool, p_pool_opp, g) for g in range(n_games)]
 
-    def step(self, actions: np.ndarray, owner: list[int], gamma: float, shaping_weight: float, level: float = 1.0):
+    def step(self, actions: np.ndarray, owner: list[int], gamma: float, shaping_weight: float, level: float = 1.0,
+             mate_weight: float = 0.0, mate_bonus: float = 0.0):
         # 1. everyone who isn't the learner, grouped by who plays them
         jobs: dict[int, list] = {}  # id(partner) -> [(state, seat, game id)]
         who: dict[int, object] = {}
@@ -234,7 +268,8 @@ class FcpBatch(Batch):
         row = 0
         for g, game in enumerate(self.games):
             n = len(game.seats)
-            r, done, info = game.finish([int(a) for a in actions[row : row + n]], others[g], gamma, shaping_weight)
+            r, done, info = game.finish([int(a) for a in actions[row : row + n]], others[g], gamma, shaping_weight,
+                                        mate_weight, mate_bonus)
             rewards[row : row + n] = r
             dones[row : row + n] = float(done)
             if done:
