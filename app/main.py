@@ -249,8 +249,8 @@ async def create_arena(request: Request):
     team_size, seed = body.get("team_size"), body.get("seed")
     max_ticks, break_seconds = body.get("max_ticks", engine.MAX_TICKS), body.get("break_seconds", 10)
     deadline = body.get("deadline_seconds", 2.0)
-    blind = body.get("study", False)  # draw blinded teammate bots, as the shared arena does (ADR 0017)
-    if not isinstance(blind, bool):
+    study_draw = body.get("study", False)  # draw named teammate bots at random, as the shared arena does (ADR 0019)
+    if not isinstance(study_draw, bool):
         raise HTTPException(400, "study must be true or false.")
     if team_size not in engine.SIZES or not isinstance(seed, int) or not 0 <= seed < 2**32:
         raise HTTPException(400, "Send team_size (2 or 3) and seed (0 to 2^32 - 1).")
@@ -261,7 +261,7 @@ async def create_arena(request: Request):
     try:
         arena = hall.open_arena(
             f"p-{secrets.token_urlsafe(6)}", "private", team_size, seed,
-            max_ticks=max_ticks, break_seconds=break_seconds, deadline=float(deadline), study=blind,
+            max_ticks=max_ticks, break_seconds=break_seconds, deadline=float(deadline), study=study_draw,
         )
     except RuntimeError:
         raise HTTPException(503, "Too many arenas are open. Try again in a minute.")

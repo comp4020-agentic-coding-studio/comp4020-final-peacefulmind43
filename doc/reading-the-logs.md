@@ -36,7 +36,7 @@ line.
 | choice | `Visitor b17e82 chose right for player 1, turn 2` |
 | pause | `Visitor be016f paused match 1 (player 3, red)` |
 | resume | `Visitor b17e82 resumed match 1 (player 1, blue)` |
-| tag | `A bot (cur4) got caught (player 2, blue)` |
+| tag | `A bot (fcp1) got caught (player 2, blue)` |
 | pickup | `Visitor b17e82 picked up the flag (player 1, blue)` |
 | capture | `Visitor b17e82 scored! (player 1, blue)` |
 | leave | `Visitor be016f closed the game page (player 3, red)` |
@@ -99,7 +99,8 @@ at the start, and match it to the `join` lines.
 ## A narration script for the crit
 
 1. "Visitor b17e82 opened the game and joined blue as player 1. Visitor be016f
-   joined red as player 3. The other seats are bots, named as cur4."
+   joined red as player 3. The other seats are bots, each shown by its name
+   (fcp1, cur4 or scripted)."
 2. "Both are choosing now: each choice line has their label and their seat,
    so one person can never move the other's player."
 3. "Visitor be016f paused match 1. Visitor b17e82 resumed it: anyone with a

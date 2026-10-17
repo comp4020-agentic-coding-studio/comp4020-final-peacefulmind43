@@ -3,7 +3,7 @@ import { JSDOM } from "jsdom";
 import { expect, it } from "vitest";
 import { url } from "./helpers";
 
-// README: a friend with no finance background can use the room, and the
+// README: a few friends can play it with the keyboard or a tap, and the
 // marker checks it with the keyboard. axe catches the mechanical part of that
 // (labels, names, landmarks, heading order) on the HTML the server sends.
 // Colour contrast needs a real layout engine, which jsdom doesn't have, so

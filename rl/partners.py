@@ -42,7 +42,7 @@ TRAIN_POOL = {
     "cur1": f"net:{POOL_DIR / 'cur1.pt'}",          # 2M samples, before it learned to attack
     "cur2": f"net:{POOL_DIR / 'cur2.npz'}",         # attacks, never defends, never gets home past a defender
     "cur4snap": f"net:{POOL_DIR / 'cur4snap.npz'}",  # mid cur4, about even with the scripted bot
-    "cur4": f"net:{POOL_DIR / 'cur4.pt'}",          # the deployed bot: the old self-play partner
+    "cur4": f"net:{POOL_DIR / 'cur4.pt'}",          # the bot deployed before fcp1: the old self-play partner
     "phi2": f"net:{POOL_DIR / 'phi2.npz'}",         # never leaves its own half
     "scripted": "scripted",
     "scripted50": "scripted:0.5",

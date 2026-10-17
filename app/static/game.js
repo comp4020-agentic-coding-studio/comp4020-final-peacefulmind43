@@ -151,7 +151,7 @@
   // The request says what the button shows (ADR 0022): Pause asks for a
   // paused match, Resume for a running one, so two people pressing Pause at
   // once both get a paused match instead of undoing each other.
-  async function togglePause() {
+  async function askPause() {
     if (you === null) return;
     const res = await fetch("/arena/pause", {
       method: "POST",
@@ -163,9 +163,9 @@
       showPause(p.paused ? (p.by === me ? "you" : p.by) : null);
     }
   }
-  $("pause")?.addEventListener("click", togglePause);
+  $("pause")?.addEventListener("click", askPause);
   document.addEventListener("keydown", (e) => {
-    if ((e.key === "p" || e.key === "P") && !e.repeat && !(e.target instanceof HTMLInputElement)) togglePause();
+    if ((e.key === "p" || e.key === "P") && !e.repeat && !(e.target instanceof HTMLInputElement)) askPause();
   });
 
   stream.addEventListener("chosen", (e) => {

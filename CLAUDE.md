@@ -17,7 +17,7 @@ so. The rules of the game are ADR 0010; any change to them bumps
 - **Never let a bot see more than a person.** Bots choose from the game state
   as it was shown when the turn opened: never from people's choices, never
   from anything not on screen. A bot function takes the state and a seat,
-  nothing else.
+  nothing else. `tests/test_fairness.py` checks it.
 - **Never make a person lose for being slower than a program.** A turn waits
   for every person with the page open, up to the deadline (ADR 0012).
 - **Never stop a game because someone left.** A closed page's seat is covered
@@ -63,6 +63,10 @@ so. The rules of the game are ADR 0010; any change to them bumps
 `http://localhost:8080`; set `OPERATOR_KEY` to run the private-arena checks).
 `python -m pytest tests` runs the engine, observation and bot tests. Run both
 before every commit that changes behaviour.
+
+The README's "Checked and judged" names the test behind each claim. A claim
+with no test is listed there as judged. When a named test is renamed or
+removed, or a claim changes, change the README in the same commit.
 
 **Never point `pnpm check` at the live app.** The spec plays matches and saves
 them. Run it against a local app (`DATA_DIR=.data`) or let CI run it against its
