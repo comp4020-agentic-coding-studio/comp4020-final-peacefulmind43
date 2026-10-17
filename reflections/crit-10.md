@@ -2,28 +2,30 @@
 
 ## What was the breakthrough that moved the work forward?
 
-The breakthrough was a pause button that did nothing. I added it, its spec
-checks passed, and then I pressed it and nothing happened. The browser had
-kept the old game script, which had no code for the button. The spec could not
-see this, because it talks to the server directly and never runs the page.
-Now scripts load by a hash of their contents, so a new page gets new code.
+The breakthrough was a pause button that did nothing. Its spec checks passed,
+then I pressed it and nothing happened. The browser had kept the old script.
+The spec could not see this, because it never runs the page. Now scripts load
+by a hash of their contents.
 
-This taught me that "the checks pass" is a claim about one layer. So for this
-crit I checked the other layers on purpose. Before I wrote down who may see
-and change what, I read the server code against each rule instead of trusting
-my memory of it. That found two real holes: a reload in a full match could
-give your seat to a newcomer, and a live match's choices could be read before
-the turn ended. Each now has a spec check that failed before the fix.
+This taught me that "the checks pass" is a claim about one layer. So I started
+checking other layers on purpose. Before I wrote down who may see and change
+what, I read the code against each rule. That found two holes: a reload could
+give your seat to a newcomer, and a live match's choices could be read early.
+Later I read the week 10 lecture against the app and found three more gaps:
+two people pressing Pause at once cancelled out, requests had no ids, and the
+cookie was not Secure. Each fix has a spec check that failed first.
 
 ## What did this work change about who I want to be as a software developer?
 
-It is easy to write logs only for yourself, for when something breaks. This
-crit the logs have another reader: someone telling the story of a game they
-are not playing. When I read the real lines with that reader in mind, they
-were not good enough. Bots were called "a new visitor", and nothing was logged
-when someone closed the page. Now each line says who, where and what in a
-plain sentence, and the page tells each person their label.
+I want to write down what success means before I see the result. For the
+team-play bot, team1, I wrote its bar in the ADR before training. It failed:
+its partners scored less, not more, even though it won 97% of games against
+the scripted bot. Without the bar, I think I would have called that a
+success. I kept fcp1 and recorded team1 as a negative result.
 
-I want to build for the person who reads the output, not only for the person
-who writes the code. A permission rule, a log line and a test are all promises
-to someone, and I want to check each one from where that person stands.
+I also want to build for the person who reads the output. This crit, the logs
+had a new reader: someone telling the story of a game they are not playing.
+Bots were called "a new visitor", and closing the page was not logged. Now
+each line says who, where and what in a plain sentence. A log line, a rule
+and a test are all promises to someone, and I want to check each one from
+where that person stands.
