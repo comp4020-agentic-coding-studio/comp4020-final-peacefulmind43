@@ -1,73 +1,76 @@
 # Capture the flag
 
 A small capture-the-flag game where people and bots play on the same teams.
-Open the page and you are in a game: alone, with a bot as your teammate, or
-with anyone who opens it at the same time.
+Open the page and you are in a match with whoever else opened it.
 
 ## Who it is for
 
-A few friends who want a short game together, whether two of them are free or
-six. Empty seats are filled by bots, so a game can always start, and the bots
-have to be teammates worth having. To try it with someone, open the page in
-two browsers: you land in the same match.
+A few friends, often in one room, whether two are free or six. Robin Sloan
+says an app for a few people can be a
+["home-cooked meal"](https://www.robinsloan.com/notes/home-cooked-app/):
+narrow, with no logins, so I built no accounts. Playing with someone in the
+same room is more fun than with an unseen player
+([Gajadhar et al. 2008](https://doi.org/10.1007/978-3-540-88322-7_11),
+abstract only), so bots are there to let a game start, not to replace
+friends.
 
 ## What good means here
 
-A bot is good when the people in its game are glad it is there. That
-means:
+A game can work and look nice and still be unfair. Here, good means:
 
-1. **A game can always start.** One person plays at once; others join the same
-   match by taking over a bot's seat, and a seat someone leaves is covered by a
-   bot within five seconds.
-2. **Bots are fair.** They see exactly the board a person sees, play by the
-   same rules, and choose from the board everyone was shown, never from what
-   people have just pressed.
-3. **Bots win by choosing well, not by being fast.** A turn waits until every
-   person has chosen, for up to two seconds, so nobody loses for being slower
-   than a program. I changed the game to this after losing at four moves a
-   second.
-4. **A bot is a teammate, not the star.** The trained bot is rewarded for its
-   team scoring, not for scoring itself.
-5. **It is honest about which bot is which.** Every bot seat is named.
+1. **A game can always start.** You play alone with bots; others take a bot's
+   seat at once; if you leave, a bot covers you within five seconds.
+2. **Bots are fair.** They see the board people see, and never what people
+   just pressed.
+3. **Speed does not decide.** At four moves a second I found it really hard
+   to keep up with the bots, so a turn now waits for everyone, up to 2
+   seconds. WCAG 2.2.1
+   ([Timing Adjustable](https://www.w3.org/WAI/WCAG22/Understanding/timing-adjustable.html))
+   asks that a user can turn a limit off. My answer is pause: anyone can
+   pause, with no time limit, and press again to carry on. The limit
+   ([ADR 0021](doc/adr/0021-playing-alone-keeps-the-deadline.md)): someone who
+   needs more than 2 seconds every turn must pause every turn.
+4. **A bot is a teammate, not the star.** It is rewarded when its team
+   scores, and I count who scores: the person or the bot.
+5. **Every bot is named.** This costs something: a bot made people cooperate
+   more only while they did not know it was a bot
+   ([Ishowo-Oloko et al. 2019](https://doi.org/10.1038/s42256-019-0113-5),
+   abstract only). Hiding it from friends is worse.
+
+I compare bots by behaviour, not ratings. Classmates at crits mostly play
+carelessly, so ratings would be noise. But
+[Siu et al. 2021](https://arxiv.org/abs/2107.07630) found two bots with
+similar scores where people clearly preferred one. Behaviour can miss that,
+and I accept the gap.
 
 ## Checked and judged
 
-Tests in `spec/` and `tests/` check, on every change: every rule, against a
-second engine in TypeScript that must agree every turn; that the game is the
-same for both teams; that two people share a match and see each other's choices
-within a second; that turns wait for people up to the deadline; that bots can't
-see choices; and that the server runs the evaluated bot.
+Checked on every change by `spec/` and `tests/`:
 
-People judge the rest: whether the bot feels like a good teammate, and whether
-the game is fun. My crit group plays it, and the activity log records what
-happens.
+- 1: "lets a visitor alone play with bots", "lets a newcomer take over a
+  bot's seat", "hands a closed page's seat to a bot within five seconds".
+- 2: "shows everyone in a match the same board"; `tests/test_fairness.py`;
+  a second engine must agree every turn.
+- 3: "resolves a turn as soon as the only person has chosen, and at the
+  deadline"; "lets anyone in a match pause it"; "keeps a match paused when
+  two people press Pause".
+- 5: "names every bot seat by its real bot"; "has no rating endpoint".
 
-## What I read
-
-- Max Jaderberg and others, "Human-level performance in 3D multiplayer games
-  with population-based reinforcement learning" (Science, 2019): agents
-  trained to play capture the flag with and against people.
-- Micah Carroll and others, "On the Utility of Learning about Humans for
-  Human-AI Coordination" (NeurIPS, 2019): agents trained only with copies of
-  themselves are poor partners for people.
-- DJ Strouse and others, "Collaborating with Humans without Human Data"
-  (NeurIPS, 2021): training with a variety of past partners makes better
-  teammates for people.
-- Andrew Ng, Daishi Harada and Stuart Russell, "Policy invariance under reward
-  transformations" (ICML, 1999): the kind of reward shaping I use can't change
-  which strategy is best.
+Judged: point 4, from `/study` and the [RL evaluation](doc/rl/README.md);
+and whether it is fun, by playing.
 
 ## What I chose not to build
 
-- **No accounts.** The game only needs to tell people apart.
-- **No chat.** The game is played in moves, and a chat would favour fast typers.
-- **No ranking of people.** With a few friends, it would only show who played most.
+- **No accounts.** The game only tells people apart.
+- **No chat.** Friends talk in the room; chat favours fast typers.
+- **No ranking of people** or **ratings of bots.**
 
 ## Limits
 
-- The trained bot learns against scripted bots, not people, so it may play
-  differently with people.
-- A choice is still needed within two seconds, which some players will find
-  too short.
-- Your bot teammate is drawn at random each match; `/study` compares the bots
-  by who scores, not by ratings.
+- No human ratings, and very little human data.
+- Every partner in the RL evaluation is a bot.
+- The deployed bot, fcp1, holds up beside weak partners but is not a team
+  player: it scores almost everything itself and does not adapt to you, so
+  point 4 is not met. A person with a bot teammate rarely wins: the
+  opponents are two strong bots, and a person is weaker than a bot. I
+  chose not to add difficulty settings or more training for now.
