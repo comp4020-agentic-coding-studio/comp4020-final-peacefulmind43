@@ -741,3 +741,44 @@ scripted bot), and the README asks for a fair game. As a teammate it is no
 better than fcp1. So fcp1 stays. ADR 0020 is now rejected (2026-10-16), with
 a Result section; it was merged as proposed, and a proposed record may be
 finalised. This is a negative result, and I keep it as one.
+
+## 2026-10-17: README and PROCESS rewritten, and a consistency pass
+
+I rewrote README.md (599 words) and PROCESS.md (1,147 words) with sources
+from my reading list, which I had checked on 2026-10-14. The README argues
+"good" from Sloan, Gajadhar et al. (abstract only), WCAG 2.2.1,
+Ishowo-Oloko et al. (abstract only) and Siu et al. It meets three
+counter-cases head-on: Siu et al. (same scores, different preference, so
+behaviour alone can miss what people prefer), Ishowo-Oloko et al. (naming a
+bot lowers cooperation), and WCAG 2.2.1 against the 2-second deadline, with
+pause as my answer and its limit from ADR 0021. PROCESS.md makes the case for
+the stack and the way I worked with the agent, with commits, and gives my
+position on small-scale good from Sloan, Shirky and Elhage. My pod did not
+play the game at crit 9, so there is no pod feedback in either file.
+
+The README's limits now say plainly that a person with a bot teammate rarely
+wins against the deployed bot: the opponents are two strong bots, a person is
+weaker than a bot, and fcp1 plays alone and does not adapt to its teammate. I
+decided not to add difficulty settings or more training for now.
+
+Then I read the README, CLAUDE.md, the spec titles, the ADRs, the RL summary,
+reading-the-logs and the page text side by side. What I found and fixed:
+
+- **A claim with no test.** The old README said a test checks that bots
+  can't see people's choices, but no test did. `tests/test_fairness.py` now
+  plays one turn with each of the five choices on 20 maps and checks every
+  bot makes the same move. I made a bot copy a person's choice on purpose,
+  and the test failed. CLAUDE.md names the test, and a new rule says the
+  README's "Checked and judged" changes in the same commit as a test or a
+  claim it names.
+- **Pause was still called a toggle** in the page script (`togglePause`),
+  after ADR 0022 made it set a state. Renamed.
+- **"Blinded" teammate bots** in the private-arena code comment and variable,
+  after ADR 0019 removed blinding. Renamed.
+- **cur4 as the deployed bot** in reading-the-logs (example line and the
+  narration script) and in two comments in `rl/`. fcp1 is deployed since
+  2026-10-14.
+- **The accessibility spec** still spoke of "a friend with no finance
+  background" and "the room", from the Overlay Room.
+- **The game page** said there is time to think, but not how to get more. It
+  now says anyone can press Pause, with no time limit (ADR 0015, 0021).
