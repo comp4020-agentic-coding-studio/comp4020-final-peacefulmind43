@@ -1,0 +1,42 @@
+== Balance evaluation for ADR 0023, run 2026-10-19 with rl/balance.py
+-- The stand-in is a program, not a person: the scripted bot with extra random moves (scripted:E).
+-- It plays one seat of a team (the seat rotates); fcp1 plays the rest of that team; the candidate plays every seat of the other team.
+-- win/draw/loss are for the stand-in's team, with 95% Wilson intervals; points = (win + draw/2) / games.
+
+stand-in for a person: scripted:0.5; beside it: fcp1; seeds from 3,000,000; 400 games each
+vs fcp1       win  2.8% [1.5%, 4.9%] draw 65.5% [60.7%, 70.0%] loss 31.8% [27.4%, 36.5%]  points 35.5%  captures 0.07 for, 0.55 against; by the stand-in 0.02
+vs cur4       win  8.2% [5.9%, 11.4%] draw 73.5% [69.0%, 77.6%] loss 18.2% [14.8%, 22.3%]  points 45.0%  captures 0.26 for, 0.37 against; by the stand-in 0.04
+vs cur4snap   win 23.5% [19.6%, 27.9%] draw 62.5% [57.7%, 67.1%] loss 14.0% [10.9%, 17.7%]  points 54.8%  captures 0.54 for, 0.35 against; by the stand-in 0.10
+vs scripted   win 38.0% [33.4%, 42.8%] draw 50.0% [45.1%, 54.9%] loss 12.0% [9.2%, 15.6%]  points 63.0%  captures 1.23 for, 0.61 against; by the stand-in 0.00
+vs noisy10    win 45.5% [40.7%, 50.4%] draw 46.2% [41.4%, 51.1%] loss  8.2% [5.9%, 11.4%]  points 68.6%  captures 1.35 for, 0.45 against; by the stand-in 0.00
+vs noisy20    win 54.5% [49.6%, 59.3%] draw 41.5% [36.8%, 46.4%] loss  4.0% [2.5%, 6.4%]  points 75.2%  captures 1.46 for, 0.25 against; by the stand-in 0.01
+vs noisy30    win 61.3% [56.4%, 65.9%] draw 37.0% [32.4%, 41.8%] loss  1.8% [0.9%, 3.6%]  points 79.8%  captures 1.62 for, 0.14 against; by the stand-in 0.02
+vs noisy50    win 76.0% [71.6%, 79.9%] draw 23.0% [19.1%, 27.4%] loss  1.0% [0.4%, 2.5%]  points 87.5%  captures 1.93 for, 0.05 against; by the stand-in 0.05
+closest to an even match: cur4snap
+
+stand-in for a person: scripted:0.3; beside it: fcp1; seeds from 3,000,000; 400 games each
+vs fcp1       win  3.0% [1.7%, 5.2%] draw 64.2% [59.4%, 68.8%] loss 32.8% [28.3%, 37.5%]  points 35.1%  captures 0.07 for, 0.55 against; by the stand-in 0.03
+vs cur4       win  8.5% [6.1%, 11.6%] draw 67.8% [63.0%, 72.1%] loss 23.8% [19.8%, 28.2%]  points 42.4%  captures 0.28 for, 0.52 against; by the stand-in 0.05
+vs cur4snap   win 25.5% [21.5%, 30.0%] draw 62.5% [57.7%, 67.1%] loss 12.0% [9.2%, 15.6%]  points 56.8%  captures 0.64 for, 0.32 against; by the stand-in 0.19
+vs scripted   win 42.0% [37.3%, 46.9%] draw 45.8% [40.9%, 50.6%] loss 12.2% [9.4%, 15.8%]  points 64.9%  captures 1.27 for, 0.55 against; by the stand-in 0.01
+vs noisy10    win 45.5% [40.7%, 50.4%] draw 46.5% [41.7%, 51.4%] loss  8.0% [5.7%, 11.1%]  points 68.8%  captures 1.35 for, 0.42 against; by the stand-in 0.05
+vs noisy20    win 54.2% [49.4%, 59.1%] draw 43.2% [38.5%, 48.1%] loss  2.5% [1.4%, 4.5%]  points 75.9%  captures 1.48 for, 0.26 against; by the stand-in 0.07
+vs noisy30    win 64.5% [59.7%, 69.0%] draw 33.8% [29.3%, 38.5%] loss  1.8% [0.9%, 3.6%]  points 81.4%  captures 1.65 for, 0.17 against; by the stand-in 0.13
+vs noisy50    win 79.8% [75.5%, 83.4%] draw 20.0% [16.4%, 24.2%] loss  0.2% [0.0%, 1.4%]  points 89.8%  captures 2.04 for, 0.04 against; by the stand-in 0.28
+closest to an even match: cur4snap
+
+stand-in for a person: scripted:0.7; beside it: fcp1; seeds from 3,000,000; 400 games each
+vs fcp1       win  1.8% [0.9%, 3.6%] draw 63.7% [58.9%, 68.3%] loss 34.5% [30.0%, 39.3%]  points 33.6%  captures 0.06 for, 0.61 against; by the stand-in 0.00
+vs cur4       win  8.0% [5.7%, 11.1%] draw 73.5% [69.0%, 77.6%] loss 18.5% [15.0%, 22.6%]  points 44.8%  captures 0.22 for, 0.36 against; by the stand-in 0.01
+vs cur4snap   win 19.2% [15.7%, 23.4%] draw 65.8% [61.0%, 70.2%] loss 15.0% [11.8%, 18.8%]  points 52.1%  captures 0.47 for, 0.38 against; by the stand-in 0.03
+vs scripted   win 39.2% [34.6%, 44.1%] draw 45.8% [40.9%, 50.6%] loss 15.0% [11.8%, 18.8%]  points 62.1%  captures 1.27 for, 0.71 against; by the stand-in 0.00
+vs noisy10    win 45.8% [40.9%, 50.6%] draw 48.2% [43.4%, 53.1%] loss  6.0% [4.1%, 8.8%]  points 69.9%  captures 1.34 for, 0.42 against; by the stand-in 0.00
+vs noisy20    win 53.5% [48.6%, 58.3%] draw 44.0% [39.2%, 48.9%] loss  2.5% [1.4%, 4.5%]  points 75.5%  captures 1.46 for, 0.35 against; by the stand-in 0.00
+vs noisy30    win 57.5% [52.6%, 62.3%] draw 39.8% [35.1%, 44.6%] loss  2.8% [1.5%, 4.9%]  points 77.4%  captures 1.50 for, 0.20 against; by the stand-in 0.00
+vs noisy50    win 71.2% [66.6%, 75.5%] draw 27.3% [23.1%, 31.8%] loss  1.5% [0.7%, 3.2%]  points 84.9%  captures 1.81 for, 0.09 against; by the stand-in 0.01
+closest to an even match: cur4snap
+
+stand-in for a person: scripted:0.5; beside it: fcp1; seeds from 3,100,000; 400 games each
+vs cur4snap   win 24.5% [20.5%, 28.9%] draw 61.3% [56.4%, 65.9%] loss 14.2% [11.2%, 18.0%]  points 55.1%  captures 0.54 for, 0.34 against; by the stand-in 0.08
+vs cur4       win  8.0% [5.7%, 11.1%] draw 69.8% [65.1%, 74.0%] loss 22.2% [18.4%, 26.6%]  points 42.9%  captures 0.24 for, 0.40 against; by the stand-in 0.02
+closest to an even match: cur4snap

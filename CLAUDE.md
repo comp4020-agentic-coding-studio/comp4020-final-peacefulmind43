@@ -27,6 +27,10 @@ so. The rules of the game are ADR 0010; any change to them bumps
   every saved match had a person in it.
 - **Never hide which bot is playing.** Every bot seat names its bot, always:
   teammates and opponents, during the match and after (ADR 0019).
+- **Never let bot strength decide a match against people.** In a match with
+  a person, a team with no person gets the balanced bot (ADR 0023); if both
+  teams have people, every bot is the same bot. The balanced bot is chosen by
+  `rl/balance.py` on unseen maps, and changed only with a new run and ADR.
 - **Never log or show a visitor's cookie.** Use the public label.
 - **Never touch the database or the log inside a turn.** Write them after it,
   or in a thread.

@@ -30,7 +30,7 @@ COOKIE = "visitor"
 
 from .game import policy  # noqa: E402
 
-hall = Hall(Store(), bot=policy.deployed())
+hall = Hall(Store(), bot=policy.deployed(), balanced=policy.balanced())
 hall.watch_bot = policy.on_show()
 
 # Choices arrive several times a second during a crit: each is printed at once,

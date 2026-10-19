@@ -30,6 +30,7 @@ BREAK_SECONDS = 10  # between matches
 MAX_PEOPLE = 6  # in one shared arena: 3v3
 MAX_ARENAS = 20  # private arenas are operator-only, so this guards memory, not abuse
 PRIVATE_IDLE_SECONDS = 20  # a private arena with nobody in it closes
+SAME = object()  # Hall(balanced=SAME): opponents are the same bot as teammates
 
 
 @dataclass
@@ -94,7 +95,8 @@ class Arena:
     matches_played: int = 0
     break_until: float = 0.0  # > 0 while between matches
     turn_opened: float = 0.0
-    team_bots: tuple = (None, None)  # set by the hall: each team's trained bot, or None for scripted
+    team_bots: tuple = (None, None)  # set by the hall: each team's bot, or None for scripted
+    mate_bot: object = None  # the bot beside people when there is no study draw: the deployed bot
     empty_since: float = 0.0
     spans: list[tuple[int, str, int, int]] = field(default_factory=list)  # seat, visitor, from, to
     replay: list[list[int]] = field(default_factory=list)  # every turn's actions, for ADR 0014
@@ -102,7 +104,7 @@ class Arena:
     paused_by: str | None = None  # the visitor who paused the match (ADR 0015)
     study: bool = False  # draw each team's bot teammate at random each match (ADR 0017, 0019): the shared arena, or a private one asked for it
     draw: dict | None = None  # this match's draw: {"seed", "bots": [blue, red]}
-    assigned: list = field(default_factory=lambda: [False, False])  # per team: its bots are the drawn bot
+    assigned: list = field(default_factory=lambda: [False, False])  # per team: a person has sat on it this match
     bot_turns: list = field(default_factory=lambda: [0, 0])  # per team: turns the drawn bot played beside a person
 
     # --- what pages are told -------------------------------------------------
@@ -124,17 +126,30 @@ class Arena:
         return out
 
     def bot_name(self, team: int) -> str:
-        """The name shown for a team's bots: "scripted" or the trained bot's name."""
+        """The name shown for a team's bots: "scripted", "noisyNN" or the trained bot's name."""
         bot = self.team_bots[team]
         return bot.name if bot else "scripted"
 
     def assign_team(self, team: int) -> None:
-        """A person sits on this team: in a study match, its empty seats are
-        filled from now on by the bot drawn for it, named as always."""
-        if self.draw is None or self.assigned[team]:
+        """A person sits on this team for the first time this match. From now
+        on its bot seats are teammates: the bot drawn for it in a study match,
+        or else the deployed bot. If the other team already has a person, both
+        teams get the same bot, so a match between people stays even (ADR
+        0023). A team that never has a person keeps the balanced bot set at
+        the start of the match. Every bot is named, as always."""
+        if self.assigned[team]:
             return
+        other = 1 - team
+        if self.assigned[other]:
+            mate = self.team_bots[other]  # both sides have people: the same bot on both
+            if self.draw is not None:
+                self.draw["bots"][team] = self.draw["bots"][other]
+        elif self.draw is not None:
+            mate = study.player(self.draw["bots"][team])
+        else:
+            mate = self.mate_bot
         bots_ = list(self.team_bots)
-        bots_[team] = study.player(self.draw["bots"][team])
+        bots_[team] = mate
         self.team_bots = tuple(bots_)
         self.assigned[team] = True
 
@@ -238,8 +253,11 @@ class Hall:
             })
         return out
 
-    def __init__(self, store, bot: "policy.Policy | None" = None):
+    def __init__(self, store, bot: "policy.Policy | None" = None, balanced=SAME):
         self.bot = bot  # the trained bot that fills empty seats, or None for scripted bots
+        # the bot on a team with no person, in a match someone is playing (ADR 0023);
+        # None is the scripted bot, and by default it is the same bot as above
+        self.balanced = bot if balanced is SAME else balanced
         self.watch_bot = None  # the trained bot shown in the watch arena (may differ from self.bot)
         self.recent_choices: dict[str, list[float]] = {}  # visitor -> times of recent choices, for /log
         self.arenas: dict[str, Arena] = {}
@@ -261,6 +279,7 @@ class Hall:
         arena = Arena(arena_id, kind, team_size, seed, **options)
         arena.study = arena.study or kind == "shared"
         arena.team_bots = (self.bot, self.bot)
+        arena.mate_bot = self.bot
         self.arenas[arena_id] = arena
         return arena
 
@@ -289,12 +308,13 @@ class Hall:
         arena.replay = []
         arena.tally = {}
         arena.paused_by = None
-        if arena.study:  # ADR 0017, 0019: a fresh, recorded draw each match; the deployed bot until a person sits
+        if arena.study:  # ADR 0017, 0019: a fresh, recorded draw each match
             draw_seed = (arena.seed * 7919 + arena.matches_played) % 2**32 if arena.kind == "private" else secrets.randbelow(2**32)
             arena.draw = study.draw(draw_seed, self.teammate_bots)
-            arena.team_bots = (self.bot, self.bot)
-            arena.assigned = [False, False]
-            arena.bot_turns = [0, 0]
+        arena.assigned = [False, False]
+        arena.bot_turns = [0, 0]
+        if arena.kind != "watch":  # ADR 0023: the balanced bot until a person sits on the team
+            arena.team_bots = (self.balanced, self.balanced)
         arena.break_until = 0.0
         arena.turn_opened = time.monotonic()
         arena.match_id = None if arena.kind == "watch" else self.store.start(arena)
@@ -340,7 +360,7 @@ class Hall:
                 if seat.owner:
                     arena.spans.append((i, seat.owner, seat.since_tick, arena.state.tick))
                 arena.seats[i] = Seat(team=team, owner=visitor_id, last_input=time.monotonic(), since_tick=arena.state.tick)
-                if arena.draw is not None and not arena.assigned[team]:
+                if not arena.assigned[team]:
                     arena.assign_team(team)
                     if announce:
                         arena.seats_changed()
@@ -586,7 +606,7 @@ class Hall:
                 actions.append(bots.scripted_action(s, i))
             seat.choice = None
         for t in (0, 1):  # a turn in which the drawn bot played beside a person on its team
-            if arena.assigned[t] and any(not x.human for x in arena.seats if x.team == t):
+            if arena.draw is not None and arena.assigned[t] and any(not x.human for x in arena.seats if x.team == t):
                 arena.bot_turns[t] += 1
         events = engine.step(s, actions)
         arena.replay.append(actions)

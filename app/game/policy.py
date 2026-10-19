@@ -78,3 +78,12 @@ def deployed() -> Policy | None:
     if not pointer.exists():
         return None
     return load(pointer.read_text().strip())
+
+
+
+def balanced() -> Policy | None:
+    """The bot named in BOT_DIR/balanced.txt. It plays a team with no person
+    on it, in a match where someone is playing (ADR 0023). Without the file,
+    such a team gets the deployed bot, as before."""
+    pointer = BOT_DIR / "balanced.txt"
+    return load(pointer.read_text().strip()) if pointer.exists() else deployed()

@@ -29,6 +29,9 @@ five things.
    with no time limit, and press again to carry on. The catch
    ([ADR 0021](doc/adr/0021-playing-alone-keeps-the-deadline.md)) is that
    someone who needs more than 2 seconds every turn must pause every turn.
+   Nor should strength. When a person plays, a team with no person gets a
+   weaker bot, cur4snap, so the match is close to even
+   ([ADR 0023](doc/adr/0023-balanced-opponents.md)).
 4. A bot plays for its team. It is rewarded when its team scores, and I
    count who scored, the person or the bot.
 5. Every bot is named, though it costs something. A bot made people cooperate
@@ -52,11 +55,12 @@ tests/test_fairness.py, where a second engine must agree every turn.
 
 Point 3 has "resolves a turn as soon as the only person has chosen, and at
 the deadline", "lets anyone in a match pause it" and "keeps a match paused
-when two people press Pause". Point 5 has "names every bot seat by its real
-bot" and "has no rating endpoint".
+when two people press Pause". The weaker bot has "names the balanced bot
+on the other team when one person plays". Point 5 has "names every bot
+seat by its real bot" and "has no rating endpoint".
 
 Point 4 is judged from /study and the [RL evaluation](doc/rl/README.md).
-Fun is judged by playing.
+Whether a match is even for people, and fun, is judged by playing.
 
 ## What I chose not to build
 
@@ -73,6 +77,6 @@ The deployed bot, fcp1, holds up next to weak partners but is no team
 player. It scores almost everything itself and does not adapt to
 you, so point 4 is not met.
 
-A person with a bot teammate rarely wins against two strong bots, since a
-person is weaker than a bot. I chose not to add difficulty
-settings or more training yet.
+I chose the weaker bot by testing it with a stand-in program, not people.
+Real people may be much weaker or stronger, and most of these games still
+end in a draw.

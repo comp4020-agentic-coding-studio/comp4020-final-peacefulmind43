@@ -11,7 +11,7 @@ afterEach(() => {
   for (const s of open.splice(0)) s.close();
 });
 
-const realName = /^(scripted|[a-z]+\d+)$/; // "scripted" or an exported bot such as cur4 or fcp1
+const realName = /^(scripted|[a-z]+\d+[a-z]*)$/; // "scripted" or an exported bot such as cur4, fcp1 or cur4snap
 
 async function studyArena(seed: number) {
   const res = await fetch(url("/api/arenas"), {
