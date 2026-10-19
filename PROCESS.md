@@ -12,8 +12,8 @@ portfolio. At crit 8 it felt static, and I agreed. Others could
 change numbers on my screen, never what I did next.
 
 In [7dc8bb4](https://github.com/comp4020-agentic-coding-studio/comp4020-final-peacefulmind43/commit/7dc8bb4)
-I switched to a team game where people and bots play together. I also
-wanted a game RL project for internships. The question became what
+I switched to a team game where people and bots play together. The
+question became what
 makes a bot a good teammate for people.
 
 ## The stack, and its costs
@@ -155,7 +155,6 @@ him up. At crit 9 my pod did not open each other's sites, so I have no pod
 feedback and little human data. So I don't claim smallness itself is
 the value.
 
-The game page is the home-cooked part. The RL work is my research and
-portfolio piece. What this game adds is the question of a fair
+The game page is the home-cooked part. The RL work is not. What this game adds is the question of a fair
 bot teammate, and so far I have only half an answer. fcp1 holds up next to
 weak partners, but it still plays alone.
