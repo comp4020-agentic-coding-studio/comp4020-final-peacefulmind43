@@ -7,7 +7,7 @@ next to it.
 
 The app is a small capture-the-flag game where people and bots share teams
 (2v2 or 3v3, on random symmetric maps). Bots fill every empty seat. The
-question is what makes a bot a **good teammate for people** ([ADR 0013](../adr/0013-rl-bot-design.md),
+question is what makes a bot a good teammate for people ([ADR 0013](../adr/0013-rl-bot-design.md),
 [ADR 0018](../adr/0018-fcp-lite-partner-pool.md)).
 
 ## Environment and engine
@@ -31,23 +31,23 @@ both teams, always attacking to the right
 A mirror test caught a real bug. The view was flipped for red, but the
 network's action was applied to the board unflipped, so for red "towards the
 enemy" moved it home. Half of every batch taught the opposite of the other
-half. The old test only checked what the two sides *see*. A new test plays a
+half. The old test only checked what the two sides see. A new test plays a
 game and its mirror with the same policy and checks they stay mirrored;
 removing the fix makes it fail ([process log, 2026-10-10](../process-log.md)).
 
 ## Training
 
-- **PPO with shared parameters.** Every learning seat is played by the same
+- PPO with shared parameters. Every learning seat is played by the same
   small convolutional network (about 250 thousand parameters) from its own view.
-- **Potential-based shaping.** Each player gets `γ·Φ(after) − Φ(before)`, where
+- Potential-based shaping. Each player gets `γ·Φ(after) − Φ(before)`, where
   Φ is minus the path still to walk before scoring. This form cannot be farmed
   and does not change the best policy (Ng, Harada and Russell 1999). Its weight
   falls to 0, so the bot ends up optimising the score alone.
-- **Curriculum.** The first bot never left home: every crossing met a full
+- Curriculum. The first bot never left home: every crossing met a full
   defender. Opponents now start wandering and get stronger each time the bot
   wins 60% of 100 games.
-- **Profiling first.** A profile showed 92% of the time in shortest-path
-  searches. Caching them made the environment **13 times faster**, with exactly
+- Profiling first. A profile showed 92% of the time in shortest-path
+  searches. Caching them made the environment 13 times faster, with exactly
   the same results on 120 scripted games ([process log, 2026-10-09](../process-log.md)).
 
 ## Results
@@ -56,7 +56,7 @@ Each bot was evaluated on 400 maps it never trained on, against the full
 scripted team, with Wilson 95% intervals
 ([fcp1-eval.txt](fcp1-eval.txt), [team1-eval.txt](team1-eval.txt)).
 
-**On every seat, against the scripted bot** (win / draw / loss):
+On every seat, against the scripted bot (win / draw / loss):
 
 | bot | win | draw | loss |
 |---|---|---|---|
@@ -65,7 +65,7 @@ scripted team, with Wilson 95% intervals
 | fcp1 (partner pool) | 48.5% [43.6, 53.4] | 49.2% | 2.2% |
 | team1 (team-play reward) | 97.2% [95.1, 98.5] | 2.0% | 0.8% |
 
-**One seat, beside a held-out partner** (loss rate; partners never seen in training):
+One seat, beside a held-out partner (loss rate; partners never seen in training):
 
 | partner | cur4 | fcp1 | team1 |
 |---|---|---|---|
@@ -80,15 +80,15 @@ partners. fcp1 was trained beside a pool of eight fixed partners of mixed
 skill. It met its
 bar: fewer losses than cur4 beside every held-out partner, with intervals
 that don't overlap. But its partners still scored almost nothing (0.00 to
-0.05 captures a game, the bot 1.20 to 1.45). FCP made the bot **robust to its
-partner's quality**; it did not teach it to **help its partner score**
+0.05 captures a game, the bot 1.20 to 1.45). FCP made the bot robust to its
+partner's quality; it did not teach it to help its partner score
 ([ADR 0018](../adr/0018-fcp-lite-partner-pool.md), [process log, 2026-10-14](../process-log.md)).
 
 ## The team-play reward: a negative result
 
 team1 added a potential-based reward for partners' progress and a bonus for
 partner captures that fell to 0 at 75% of training
-([ADR 0020](../adr/0020-team-play-reward.md)). It **failed**: the partners'
+([ADR 0020](../adr/0020-team-play-reward.md)). It failed: the partners'
 share of captures went down, not up (beside scripted30 0.4% [0.1, 1.0]
 against fcp1's 1.5% [0.6, 2.7]; beside cur3 2.3% against 4.2%). It became a
 much stronger lone wolf, on the enemy half 32 to 51% of turns against 14 to
@@ -96,12 +96,12 @@ much stronger lone wolf, on the enemy half 32 to 51% of turns against 14 to
 change the best policy, and the bonus was gone by the end. If playing alone
 is best for the team reward, neither term can teach a split of the work. An
 objective that values partners' scoring itself, partner intent in the
-observation, or human-like partners could. team1 was **not deployed**: it
+observation, or human-like partners could. team1 was not deployed: it
 would be far too strong for people, and it is no better as a teammate.
 
 ## Bars written before training
 
-Each run's deployment bar was written in its ADR **before** training, so a
+Each run's deployment bar was written in its ADR before training, so a
 result could not be explained away afterwards. fcp1 passed and is deployed; team1 failed and is recorded
 as it is.
 
@@ -126,7 +126,7 @@ Training and serving use the same observation builder, `app/game/obs.py`.
 
 ## Limits
 
-- **No human evaluation data yet.** Every partner above is a program, and the
+- No human evaluation data yet. Every partner above is a program, and the
   opponent for people was tuned with a stand-in program too. For each
   match with people, the live site records which bot was their teammate and
   shows the counts on `/study`, next to the teammate table above
