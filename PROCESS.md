@@ -24,8 +24,7 @@ server-sent events and choices come in by POST, all in one uvicorn process
 256 MB and PyTorch doesn't fit
 ([ec7237e](https://github.com/comp4020-agentic-coding-studio/comp4020-final-peacefulmind43/commit/ec7237e)).
 
-I chose Python because the server and RL training share one engine, and
-I review it best. One process keeps live updates
+I chose Python because the server and RL training share one engine. One process keeps live updates
 simple, as every page reads the same memory. It can never run on two
 machines. For a few friends that is fine.
 
@@ -60,12 +59,12 @@ people. I agreed not to deploy it
 ([06d4919](https://github.com/comp4020-agentic-coding-studio/comp4020-final-peacefulmind43/commit/06d4919)).
 Without the bar, 97% would have been easy to call a success.
 
-Training runs take about eight hours, so they ran on worktree branches
-while main moved on. They came back as the merges
+Training runs took about eight hours, so they ran on worktree branches.
+They came back as the merges
 [452628d](https://github.com/comp4020-agentic-coding-studio/comp4020-final-peacefulmind43/commit/452628d)
 and [e5c5ff1](https://github.com/comp4020-agentic-coding-studio/comp4020-final-peacefulmind43/commit/e5c5ff1),
-and both had process-log conflicts. Long jobs like checking my reading list's sources went to
-subagents, and I read their reports.
+and both had process-log conflicts. Long jobs went to subagents, and I
+read their reports.
 
 I also played it myself. The first real-time
 version ran at four moves a second. Every check passed, but I could not
@@ -99,14 +98,9 @@ test fails without the fix in
 and since [1d51c17](https://github.com/comp4020-agentic-coding-studio/comp4020-final-peacefulmind43/commit/1d51c17)
 CLAUDE.md says the action is mirrored too.
 
-CI's secret scan once blocked a deploy because of a pytest name. I checked
-the whole history, then turned off only that detector
-([1f08f53](https://github.com/comp4020-agentic-coding-studio/comp4020-final-peacefulmind43/commit/1f08f53)).
-
 ## Checking against the code, not my memory
 
-Before writing down who may see and change what, I had the code audited
-against each rule. It found two holes, and each got a spec test that failed
+Before writing down who may see and change what, I had the code audited. It found two holes, and each got a spec test that failed
 before the fix. A reload could lose your seat to a newcomer, fixed in
 [ba7700a](https://github.com/comp4020-agentic-coding-studio/comp4020-final-peacefulmind43/commit/ba7700a).
 A live match's choices could also be read before the turn ended
@@ -120,10 +114,16 @@ No request had an id until
 and the cookie lacked a Secure flag until
 [8044a2a](https://github.com/comp4020-agentic-coding-studio/comp4020-final-peacefulmind43/commit/8044a2a).
 
+The README admitted that a person rarely wins against two fcp1 bots, so
+since [f1d9635](https://github.com/comp4020-agentic-coding-studio/comp4020-final-peacefulmind43/commit/f1d9635) a team with no person gets a weaker bot, chosen
+by testing a stand-in program on 400 unseen maps per opponent. Driving the
+app in Chrome with two profiles found six problems, such as keys that did
+nothing until you clicked the board, fixed in [f78d2f0](https://github.com/comp4020-agentic-coding-studio/comp4020-final-peacefulmind43/commit/f78d2f0).
+
 For the RL work I measured first. A profile showed 92% of the time in
 path searches. Caching them in
 [ec7237e](https://github.com/comp4020-agentic-coding-studio/comp4020-final-peacefulmind43/commit/ec7237e)
-made training 13 times faster with the same results. One bot never scored.
+made training 13 times faster. One bot never scored.
 I watched it, and it never left home, so I added a curriculum
 instead of a new reward
 ([4f32a7b](https://github.com/comp4020-agentic-coding-studio/comp4020-final-peacefulmind43/commit/4f32a7b)).
@@ -145,7 +145,7 @@ Robin Sloan's
 ["home-cooked meal"](https://www.robinsloan.com/notes/home-cooked-app/) and
 Clay Shirky's
 ["Situated Software"](https://shirky.com/essays/situated-software/) say
-that software for a few people can leave out what strangers at scale need.
+software for a few people can leave out what strangers at scale need.
 That is why the game has no accounts, chat or ranking.
 
 Nelson Elhage's
@@ -156,5 +156,5 @@ feedback and little human data. So I don't claim smallness itself is
 the value.
 
 The game page is the home-cooked part. The RL work is not. What this game adds is the question of a fair
-bot teammate, and so far I have only half an answer. fcp1 holds up next to
+bot teammate, and so far I have half an answer. fcp1 holds up next to
 weak partners, but it still plays alone.

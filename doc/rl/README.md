@@ -105,6 +105,18 @@ Each run's deployment bar was written in its ADR **before** training, so a
 result could not be explained away afterwards. fcp1 passed and is deployed; team1 failed and is recorded
 as it is.
 
+## A weaker opponent for people
+
+A person with fcp1 beside them used to play against two copies of fcp1. I
+used a stand-in for a person, the scripted bot with 50% extra random moves.
+It is a program, not a person. Beside fcp1 its team won 2.8% [1.5, 4.9] and lost 31.8%
+[27.4, 36.5] of 400 unseen games that way. Now a team with no person gets
+cur4snap, a snapshot from partway through cur4's training. Against it the
+stand-in's team won 23.5% [19.6, 27.9] and lost 14.0% [10.9, 17.7], a points
+share of 54.8%. Of eight candidates it was the closest to even, with three
+stand-ins and on a second set of maps
+([ADR 0023](../adr/0023-balanced-opponents.md), [balance-eval.txt](balance-eval.txt)).
+
 ## Serving
 
 The server has 256 MB of memory and no PyTorch. The weights are exported to
@@ -114,9 +126,10 @@ Training and serving use the same observation builder, `app/game/obs.py`.
 
 ## Limits
 
-- **No human evaluation data yet.** Every partner above is a program. For each
+- **No human evaluation data yet.** Every partner above is a program, and the
+  opponent for people was tuned with a stand-in program too. For each
   match with people, the live site records which bot was their teammate and
-  compares behaviour on `/study`
+  shows the counts on `/study`, next to the teammate table above
   ([ADR 0017](../adr/0017-blind-teammate-study.md), with ratings and blinding
   removed by [ADR 0019](../adr/0019-no-ratings-behaviour-only.md)). But there is
   little such data yet, so these results show a better partner for bots, not

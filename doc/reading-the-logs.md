@@ -100,7 +100,8 @@ at the start, and match it to the `join` lines.
 
 1. "Visitor b17e82 opened the game and joined blue as player 1. Visitor be016f
    joined red as player 3. The other seats are bots, each shown by its name
-   (fcp1, cur4 or scripted)."
+   (fcp1, cur4, cur4snap or scripted). A team with no person on it gets
+   cur4snap, the weaker bot from ADR 0023."
 2. "Both are choosing now: each choice line has their label and their seat,
    so one person can never move the other's player."
 3. "Visitor be016f paused match 1. Visitor b17e82 resumed it: anyone with a

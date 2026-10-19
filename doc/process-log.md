@@ -782,3 +782,68 @@ reading-the-logs and the page text side by side. What I found and fixed:
   background" and "the room", from the Overlay Room.
 - **The game page** said there is time to think, but not how to get more. It
   now says anyone can press Pause, with no time limit (ADR 0015, 0021).
+
+## 2026-10-19: weaker opponents for people, and a browser pass
+
+The README admitted that a person with a bot teammate rarely wins. That made
+"speed does not decide" untrue for anyone who plays alone, because the other
+team was two fcp1 bots. I wrote ADR 0023 with three options: keep fcp1
+everywhere, give people weaker opponents, or change the opponent's level
+from the score. I chose weaker opponents. A match is too short to adapt
+within, and a bot that changes level mid-match is hard to name honestly.
+
+I had no people to measure with, so I used a stand-in. It is the scripted
+bot with 50% extra random moves, and it is a program, not a person. It sat
+in one seat beside fcp1. `rl/balance.py` played it against eight candidate
+opponents on 400 maps each, from seed 3,000,000, which nothing had trained
+or been tested on. Most games were draws, so I compared the points share (a
+win is 1, a draw a half), not the win rate. Against fcp1 the stand-in's team
+had 35.5%. Against the scripted bot it had 63.0%, and the noisy scripted
+bots were easier still. cur4snap, a snapshot from partway through cur4's
+training, gave 54.8%, and cur4 gave 45.0%. I checked the choice with
+stand-ins at 30% and 70% noise and on 400 other maps. cur4snap was the
+closest to even each time, so it is the balanced bot. The numbers are in
+ADR 0023 and the raw output in `doc/rl/balance-eval.txt`.
+
+My first plan was the scripted bot with extra noise, since it is simple and
+needs no new export. The numbers showed even the plain scripted bot is too
+easy for this stand-in, so noise only made it worse. I dropped that code.
+
+The rule is in `app/game/arena.py`. A team with no person gets the balanced
+bot. A team with a person keeps its teammate bot. When both teams have
+people, they get the same bot, so the match stays even. The watch arena
+does not change. `tests/test_balance.py` checks each case, and that the
+balanced bot's move does not change with a person's choice.
+`spec/balance.test.ts` checks the names in a private arena and the watch
+arena. CLAUDE.md has a new rule for it. With the app running and a match
+on, the server used about 83 MB of memory.
+
+Then I drove the app in headless Chrome with two profiles, at 1920x1080 and
+390x844. I tried keyboard only, resizing in the middle of a match, a
+throttled connection (400 ms, 400 kbit/s), two people pressing at the same
+moment, closing and reopening a tab, and a server restart. The board kept
+its shape, nothing scrolled sideways, two Pause presses gave one pause, and
+/me and the replays were still there after the restart. I found six real
+problems and fixed them.
+
+- The arrow keys did nothing until you clicked the board or tabbed to it,
+  past eight links. They now work anywhere on the game page that is not a
+  control, and the first Tab reaches a "Skip to the board" link.
+- After a restart, an open page said "Slow connection" forever. An
+  EventSource stops for good when the server refuses it. The page now opens
+  a new connection every few seconds until it gets one.
+- Reopening a tab within the grace period said "taking over from a bot".
+  It now says you have your seat again.
+- The README's links to doc/adr/ files were relative, so on /readme/ they
+  gave 404s. They now point to the files on GitHub.
+- axe in a real browser found tables on /log and /study at phone width that
+  scroll sideways but can't be reached with the keyboard. They can now.
+- Every page asked for a favicon and got a 404.
+
+I also removed CSS left from the Overlay Room. `spec/pages.test.ts` checks
+the nav, the how-to-play lines on /readme/, the pad buttons, the scroll
+boxes and every /readme/ link.
+
+I kept /study, because README point 4 needs it. It now shows the real
+teammate evaluation from `doc/rl/fcp1-eval.txt` above the live counts, which
+are still very few, and a test checks its numbers against the file.
