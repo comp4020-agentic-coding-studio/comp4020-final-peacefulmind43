@@ -37,8 +37,8 @@ A game can work and look nice and still be unfair. Here, good means:
    ([Ishowo-Oloko et al. 2019](https://doi.org/10.1038/s42256-019-0113-5),
    abstract only). Hiding it from friends is worse.
 
-I compare bots by behaviour, not ratings. Classmates at crits mostly play
-carelessly, so ratings would be noise. But
+I compare bots by behaviour, not ratings. Ratings from a few short, casual
+sessions would be too noisy. But
 [Siu et al. 2021](https://arxiv.org/abs/2107.07630) found two bots with
 similar scores where people clearly preferred one. Behaviour can miss that,
 and I accept the gap.

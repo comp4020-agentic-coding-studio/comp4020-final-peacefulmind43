@@ -1,7 +1,7 @@
 # Process overview
 
 How this project got from the brief to the game, and how I worked with the
-agent. The full record, step by step, is
+agent. The full record is
 [`doc/process-log.md`](doc/process-log.md). Decisions are in
 [`doc/adr/`](doc/adr/), and the rules I hold the agent to are in
 [`CLAUDE.md`](CLAUDE.md).
@@ -19,65 +19,66 @@ what makes a bot a good teammate for people?
 ## The stack, and its costs
 
 Python and FastAPI, SQLite on the Fly volume, server-sent events for the board
-and plain POST requests for choices, all in one uvicorn process (ADRs 0001,
+and POST requests for choices, all in one uvicorn process (ADRs 0001,
 0011). The trained bot runs in NumPy, because the machine has 256 MB and can't
 hold PyTorch
 ([`ec7237e`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-peacefulmind43/commit/ec7237e)).
 
-Python, because the server and the RL training share one engine, and it is
-the language I review best. One process makes live updates
-simple: every page is fed from the same memory. The cost: it can never run on two
+Python, because the server and RL training share one engine, and I review
+it best. One process keeps live updates
+simple: every page reads the same memory. The cost: it can never run on two
 machines, which is fine for a few friends. SSE plus POST
-means each choice is one normal request with one log line, which made the
-request ids and the access rules easy to add later. A WebSocket would be
-faster, but it would need its own rules for who sent what. NumPy serving costs
-an export step and a test that NumPy matches PyTorch. That test is in
-`CLAUDE.md`, so no bot ships unchecked.
+means each choice is one request with one log line, which made
+request ids and access rules easy to add later. A WebSocket would be
+faster but needs its own rules for who sent what. NumPy serving costs
+an export step and a test, required by `CLAUDE.md`, that NumPy matches
+PyTorch before a bot ships.
 
 ## How I worked with the agent
 
 The agent wrote most of the code. I decided, directed and checked, with five
 habits.
 
-**A decision record before a change.** For each choice that is hard to undo,
-the agent wrote the options and costs, I chose, and it became an ADR. Writing
-the server made me reread ADR 0011, and I fixed two holes in it before any
+**A decision record before a change.** For each hard-to-undo choice, the
+agent wrote the options and costs, I chose, and it became an ADR. Writing
+the server made me reread ADR 0011, and I fixed two holes before any
 code depended on them
 ([`39c9047`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-peacefulmind43/commit/39c9047)).
 A merged record is never edited; a new one supersedes it, like ADR 0021 for a
 wrong sentence in ADR 0012
 ([`f550ebc`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-peacefulmind43/commit/f550ebc)).
 
-**A bar written before training.** Each new bot's ADR says what result it
-needs before the run starts. fcp1 passed its bar and is deployed
+**A bar written before training.** Each new bot's ADR sets its bar before
+the run starts. fcp1 passed and is deployed
 ([`8b01211`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-peacefulmind43/commit/8b01211)).
 team1 was meant to let its partners score more. Its bar was written first
 ([`574235e`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-peacefulmind43/commit/574235e)),
 and it failed: it became a much stronger lone wolf, winning 97% against the
-scripted bot. I agreed it should not be deployed, because it is far too
+scripted bot. I agreed not to deploy it: it is far too
 strong for people and no better as a teammate
 ([`06d4919`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-peacefulmind43/commit/06d4919)).
 Without the bar, 97% would have been easy to call a success.
 
 **Subagents and worktrees for long work.** Training runs take about eight
-hours, so they ran on their own branches in worktrees while `main` moved on. They came back as merges
+hours, so they ran on branches in worktrees while `main` moved on, and
+came back as merges
 ([`452628d`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-peacefulmind43/commit/452628d),
 [`e5c5ff1`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-peacefulmind43/commit/e5c5ff1)).
-Long or parallel jobs, like checking the sources in my reading list, went to
+Long or parallel jobs, like checking my reading list's sources, went to
 subagents, and I read their reports. The cost: both merges conflicted in the
 process log.
 
 **Playing it myself.** The first real-time version ran at four moves a
-second. Every check passed, but I found it really hard: I could not keep up
-with the bots. So turns now wait for everyone, up to 2 seconds
+second. Every check passed, but I could not keep up with the bots. So turns
+now wait for everyone, up to 2 seconds
 ([`feb9602`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-peacefulmind43/commit/feb9602)).
-Playing again, I found that one key press walked two steps
+Playing again, I found one key press walked two steps
 ([`b0baeab`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-peacefulmind43/commit/b0baeab)).
 I asked for a pause button: anyone can pause, with no time limit, and press
 again to carry on
 ([`09d04d2`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-peacefulmind43/commit/09d04d2)).
-When I pressed it, nothing happened. The browser kept an old script, which
-the spec could not see, because it never runs the page. Scripts now load by a
+Pressing it did nothing. The browser kept an old script, which the spec
+could not see because it never runs the page. Scripts now load by a
 hash of their contents
 ([`1f83298`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-peacefulmind43/commit/1f83298)).
 
@@ -94,13 +95,13 @@ fix, and `CLAUDE.md` now says the action is mirrored too
 ([`034a144`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-peacefulmind43/commit/034a144),
 [`1d51c17`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-peacefulmind43/commit/1d51c17)).
 When CI's secret scan blocked a deploy over a pytest name, I checked the whole
-history first, then turned off only that one detector
+history, then turned off only that detector
 ([`1f08f53`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-peacefulmind43/commit/1f08f53)).
 
 ## Checking against the code, not my memory
 
 Before I wrote down who may see and change what, I had the code audited
-against each rule. Two holes came out, and each got a spec test that failed
+against each rule. Two holes came out, each with a spec test that failed
 before the fix: a reload could lose your seat to a newcomer
 ([`ba7700a`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-peacefulmind43/commit/ba7700a)),
 and a live match's choices could be read before the turn ended
@@ -117,7 +118,7 @@ The RL work followed the same idea: measure first. A profile showed 92% of
 the time in path searches, and caching them made training 13 times faster
 with the same results
 ([`ec7237e`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-peacefulmind43/commit/ec7237e)).
-When a bot never scored, I watched it first. It never left home, so the fix
+When a bot never scored, I watched it: it never left home, so the fix
 was a curriculum, not a new reward
 ([`4f32a7b`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-peacefulmind43/commit/4f32a7b)).
 The one-page summary is [`doc/rl/README.md`](doc/rl/README.md).
@@ -127,7 +128,7 @@ The one-page summary is [`doc/rl/README.md`](doc/rl/README.md).
 I first built a blind study where people rated "Bot A" or "Bot B", then
 removed it
 ([`9b2534e`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-peacefulmind43/commit/9b2534e)).
-Classmates at crits mostly play carelessly, so their ratings would be noise.
+Ratings from a few short, casual sessions would be too noisy to use.
 Now every bot is named, and behaviour is the evidence. The cost: Siu et al.
 (2021) found people can prefer one of two bots with the same score, and I
 can't see that.
@@ -141,9 +142,9 @@ Clay Shirky's
 software for a few people can drop what strangers at scale need. That is why
 there are no accounts, no chat and no ranking. But Nelson Elhage's
 ["Situated Social Software"](https://buttondown.com/nelhage/archive/situated-social-software/)
-argues that small groups mostly use general tools instead. My own crit
+argues that small groups mostly use general tools. My own crit
 supports him: at crit 9 my pod did not open each other's sites, so I have no
-pod feedback and very little human data. So I don't claim smallness itself is
+pod feedback and little human data. So I don't claim smallness itself is
 the value. The game page is the
 home-cooked part. The RL work is not; it is my research and portfolio piece.
 What this game adds is the question of a fair bot teammate, and so far the
