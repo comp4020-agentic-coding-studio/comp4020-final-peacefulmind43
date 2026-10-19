@@ -32,8 +32,8 @@ A game can work and still be unfair. Good means five things.
    Nor should strength. When a person plays, a team with no person gets a
    weaker bot, cur4snap, so the match is close to even
    ([ADR 0023](doc/adr/0023-balanced-opponents.md)).
-4. A bot plays for its team. It is rewarded when its team scores, and I
-   count who scored, the person or the bot.
+4. A bot plays for its team. It is rewarded when its team scores, and
+   /study counts who scored, next to a larger test of bots beside bots.
 5. Every bot is named, though it costs something. A bot made people cooperate
    more only while they did not know it was a bot
    ([Ishowo-Oloko et al. 2019](https://doi.org/10.1038/s42256-019-0113-5),
@@ -59,13 +59,15 @@ when two people press Pause". The weaker bot has "names the balanced bot
 on the other team when one person plays". Point 5 has "names every bot
 seat by its real bot" and "has no rating endpoint".
 
-Point 4 is judged from /study and the [RL evaluation](doc/rl/README.md).
-Whether a match is even for people, and fun, is judged by playing.
+Point 4 is judged from /study and the [RL evaluation](doc/rl/README.md),
+and a test keeps their numbers the same. Whether a match is even for
+people, and fun, is judged by playing.
 
 ## What I chose not to build
 
 There are no accounts, since the game only needs to tell people apart.
-There is no chat, because friends talk in the room.
+There is no chat, because friends talk in the room. There are no ratings
+of bots or people.
 
 ## Limits
 
@@ -75,5 +77,5 @@ The teammate bot, fcp1, holds up next to weak partners but scores almost
 everything itself, so point 4 is not met.
 
 I chose the weaker bot by testing it with a stand-in program, not people.
-Real people may be much weaker or stronger, and most of these games still
-end in a draw.
+Real people may be much weaker or stronger, and most such games still end
+in a draw.

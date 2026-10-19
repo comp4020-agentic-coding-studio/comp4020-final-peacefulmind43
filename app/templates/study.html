@@ -2,12 +2,41 @@
 {% block title %}Bot teammates · Capture the flag{% endblock %}
 {% block main %}
 <h1>Which bot is the better teammate?</h1>
-<p class="lead">In the shared game, the bot on your team is picked at random each match: the scripted bot
-  or one of the trained bots, and it is always shown by its name. Nobody is asked to rate it. Instead this page counts
-  what happened: on teams that had each bot, who scored, the people or the bots.</p>
+<p class="lead">A good bot teammate plays for its team (the README, point 4). This page puts two kinds of evidence
+  side by side: a large test of bots beside other bots, and the small count of what happened beside people here.</p>
 
-<p>Results so far, from every match a person played in. With few matches these numbers mean little, so each
-  row says how many matches and people it comes from.</p>
+<h2>Beside other bots: {{ evaluation.GAMES }} games each</h2>
+<p>One seat is the named bot. The rest of its team is a partner it never trained with, against the full
+  scripted team, on maps it never saw. A lower loss rate is better. The brackets are 95% intervals.
+  Source: <a href="https://github.com/comp4020-agentic-coding-studio/comp4020-final-peacefulmind43/blob/main/{{ evaluation.SOURCE }}">{{ evaluation.SOURCE }}</a>.</p>
+<div class="table-wrap" tabindex="0" role="region" aria-label="The teammate evaluation, scrolls sideways">
+<table class="evaluation">
+  <caption class="visually-hidden">Loss rate and captures for each bot beside each partner</caption>
+  <thead>
+    <tr><th scope="col">Partner</th><th scope="col">Bot</th><th scope="col">Lost</th>
+      <th scope="col">Captures a game by the bot</th><th scope="col">by the partners</th></tr>
+  </thead>
+  <tbody>
+    {% for r in evaluation.ROWS %}
+    <tr data-partner="{{ r.partner }}" data-bot="{{ r.bot }}">
+      <th scope="row">{{ r.partner }}, {{ r.about }}</th>
+      <td>{{ r.bot }}</td>
+      <td>{{ r.loss }}</td>
+      <td>{{ r.by_bot }}</td>
+      <td>{{ r.by_partners }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+<p>fcp1 loses less than cur4 beside every partner, so it holds up better next to a weak teammate. But its
+  partners score almost nothing. fcp1 scores nearly everything itself, so it is not yet a team player.</p>
+
+<h2>Beside people, on this site</h2>
+<p>In the shared game, the bot on your team is picked at random each match: the scripted bot
+  or one of the trained bots, and it is always shown by its name. Nobody is asked to rate it. Instead this
+  table counts who scored on teams that had each bot, the people or the bots. There are very few matches yet,
+  so these counts can't show which bot is better. Each row says how many matches and people it comes from.</p>
 
 <div class="table-wrap" tabindex="0" role="region" aria-label="Captures for each teammate bot">
 <table class="study">
@@ -29,7 +58,7 @@
 </table>
 </div>
 
-<h2>Each person</h2>
+<h3>Each person</h3>
 {% if results.people %}
 <div class="table-wrap" tabindex="0" role="region" aria-label="Captures by each person and their bot teammate">
 <table class="study-people">

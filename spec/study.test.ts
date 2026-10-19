@@ -121,3 +121,11 @@ it("tells people before they play that their bot teammate is drawn at random, an
   expect(html).toMatch(/picked at random/);
   expect(html).toContain('href="/study"');
 });
+
+it("shows the bot-beside-bot teammate evaluation next to the live counts, with n", async () => {
+  const html = await (await fetch(url("/study"))).text();
+  expect(html).toContain("400 games each");
+  expect(html).toContain("doc/rl/fcp1-eval.txt");
+  expect(html).toMatch(/data-partner="scripted30" data-bot="fcp1"/);
+  expect(html).toMatch(/very few matches/);
+});

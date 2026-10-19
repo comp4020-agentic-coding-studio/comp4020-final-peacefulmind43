@@ -50,3 +50,18 @@ def test_a_teammate_bot_is_always_named_and_its_draw_is_recorded():
     assert mates and all(s["bot"] == drawn for s in mates)
     hall.tick(arena, arena.turn_opened + 10)  # one turn with the bot beside the person
     assert arena.study_rows() == [(team, drawn, arena.draw["seed"])]
+
+
+def test_the_teammate_numbers_on_study_are_the_ones_in_the_evaluation_file():
+    from pathlib import Path
+
+    from app.game import teammate_eval
+
+    text = (Path(__file__).resolve().parent.parent / teammate_eval.SOURCE).read_text()
+    blocks = text.split("partner ")
+    for row in teammate_eval.ROWS:
+        block = next(b for b in blocks if b.startswith(row["partner"] + " "))
+        line = next(x for x in block.splitlines() if x.strip().startswith(row["bot"] + " "))
+        assert f"loss {row['loss']}" in line, row
+        assert f"by bot {row['by_bot']}, by partners {row['by_partners']}" in line, row
+        assert f"{teammate_eval.GAMES} games" in block.splitlines()[0]

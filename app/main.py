@@ -20,7 +20,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from . import activity, db, requestlog
-from .game import engine, study
+from .game import engine, study, teammate_eval
 from .game.arena import Hall
 from .game.store import Store
 
@@ -462,7 +462,7 @@ async def api_study():
 async def study_page(request: Request):
     with db.connect() as conn:
         results = study_results(conn)
-    return templates.TemplateResponse(request, "study.html", {"results": results})
+    return templates.TemplateResponse(request, "study.html", {"results": results, "evaluation": teammate_eval})
 
 
 # --- your matches -------------------------------------------------------------
