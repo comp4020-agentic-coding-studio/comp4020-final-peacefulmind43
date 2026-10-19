@@ -112,7 +112,9 @@
       $("you").textContent = `You are ${me}. Every seat has a person in it.`;
       notice("You're on the bench: you'll play from the next match, which grows to 3 a side.");
     } else if (!snap.tick.break) {
-      notice(snap.tick.tick > 0 && you !== null ? "You joined a match already under way, taking over from a bot." : "");
+      notice(you === null || snap.tick.tick === 0 ? ""
+        : snap.returning ? "Welcome back. You have your seat again."
+        : "You joined a match already under way, taking over from a bot.");
     }
   }
 
@@ -125,13 +127,16 @@
     document.querySelector(".pad").hidden = true;
     document.querySelector(".board-hint").hidden = true;
   }
-  const stream = new EventSource(`/arena/events${arenaId ? `?arena=${encodeURIComponent(arenaId)}` : ""}`);
-  stream.addEventListener("snapshot", (e) => begin(JSON.parse(e.data)));
-  stream.addEventListener("match", (e) => {
+  // Every listener is kept here, so a new connection gets them all again.
+  const handlers = {};
+  const on = (event, fn) => (handlers[event] = fn);
+  let stream = null;
+  on("snapshot", (e) => begin(JSON.parse(e.data)));
+  on("match", (e) => {
     begin(JSON.parse(e.data));
     moment("A new match started.");
   });
-  stream.addEventListener("tick", (e) => drawTick(JSON.parse(e.data)));
+  on("tick", (e) => drawTick(JSON.parse(e.data)));
   function showPause(by) {
     pausedBy = by || null;
     const button = $("pause");
@@ -142,7 +147,7 @@
     if (pausedBy) notice(`Paused by ${pausedBy}. Anyone in the match can press Resume (or P) to carry on.`);
     else if ($("notice").textContent.startsWith("Paused by")) notice("");
   }
-  stream.addEventListener("pause", (e) => {
+  on("pause", (e) => {
     const p = JSON.parse(e.data);
     showPause(p.paused ? p.by : null);
     if (!p.paused) lastTick = performance.now(); // the turn starts again from now
@@ -168,18 +173,18 @@
     if ((e.key === "p" || e.key === "P") && !e.repeat && !(e.target instanceof HTMLInputElement)) askPause();
   });
 
-  stream.addEventListener("chosen", (e) => {
+  on("chosen", (e) => {
     const c = JSON.parse(e.data);
     if (c.turn === turn) {
       chosen.add(c.seat);
       drawSeats();
     }
   });
-  stream.addEventListener("seats", (e) => {
+  on("seats", (e) => {
     seats = JSON.parse(e.data).seats;
     drawSeats();
   });
-  stream.addEventListener("moment", (e) => {
+  on("moment", (e) => {
     const m = JSON.parse(e.data);
     const who = m.seat === you ? "You" : `${m.label} (player ${m.seat + 1})`;
     const what = {
@@ -192,15 +197,26 @@
     }[m.kind] ?? m.kind;
     moment(`${who} ${what}`);
   });
-  stream.addEventListener("over", (e) => {
+  on("over", (e) => {
     const over = JSON.parse(e.data);
     const [b, r] = over.score;
     const result = b === r ? "a draw" : b > r ? "blue wins" : "red wins";
     notice(`Match over, ${b}–${r}: ${result}.`);
     moment(`Match over, ${b}–${r}.`);
   });
-  stream.onopen = () => ($("status").textContent = "Connected.");
-  stream.onerror = () => ($("status").textContent = "Connection lost. Reconnecting…");
+  // The browser reconnects by itself after a dropped connection, but gives up
+  // for good if the server answers with an error, as a proxy may while the
+  // app restarts. Then this page starts a new connection itself, every few
+  // seconds, and the snapshot that arrives puts the game back on screen.
+  function connect() {
+    stream = new EventSource(`/arena/events${arenaId ? `?arena=${encodeURIComponent(arenaId)}` : ""}`);
+    for (const [event, fn] of Object.entries(handlers)) stream.addEventListener(event, fn);
+    stream.onopen = () => ($("status").textContent = "Connected.");
+    stream.onerror = () => {
+      $("status").textContent = "Connection lost. Reconnecting…";
+      if (stream.readyState === EventSource.CLOSED) setTimeout(connect, 3000);
+    };
+  }
   // The countdown to the next move, to a tenth of a second. It counts from when
   // this turn's board arrived, not from the server's clock, so clocks that
   // disagree don't matter. (The screen-reader status below updates less often.)
@@ -228,7 +244,13 @@
   setInterval(() => {
     if (!lastTick) return;
     const quiet = (performance.now() - lastTick) / 1000;
-    if (quiet > deadline + 1.5) {
+    if (!stream || stream.readyState !== EventSource.OPEN) {
+      $("status").textContent = "Connection lost. Reconnecting…";
+    } else if (pausedBy) {
+      $("status").textContent = `Turn ${turn + 1}: paused.`;
+    } else if (breakUntil > performance.now()) {
+      $("status").textContent = "Between matches.";
+    } else if (quiet > deadline + 1.5) {
       $("status").textContent = `Slow connection: last update ${quiet.toFixed(0)} s ago.`;
     } else {
       const waiting = seats.filter((s, i) => s.kind === "human" && !chosen.has(i)).length;
@@ -268,8 +290,11 @@
     " ": STAY,
   };
   const focus = $("board-focus");
-  focus.addEventListener("keydown", (e) => {
-    if (!(e.key in KEYS)) return;
+  // The keys work on the board, and also anywhere on the page that is not a
+  // control, so someone who just opened it can press an arrow at once.
+  const forGame = (e) => e.target === focus || e.target === document.body || e.target === document.documentElement;
+  document.addEventListener("keydown", (e) => {
+    if (!(e.key in KEYS) || !forGame(e) || e.ctrlKey || e.metaKey || e.altKey) return;
     e.preventDefault(); // arrows and space would scroll the page
     if (e.repeat) return; // holding is handled turn by turn, not by key repeat
     held = KEYS[e.key] === STAY ? null : KEYS[e.key];
@@ -277,10 +302,11 @@
     sentFor = -1;
     send(KEYS[e.key]);
   });
-  focus.addEventListener("keyup", (e) => {
+  document.addEventListener("keyup", (e) => {
     if (e.key in KEYS && KEYS[e.key] === held) held = null;
   });
-  focus.addEventListener("blur", () => (held = null)); // never keep walking after leaving the board
+  window.addEventListener("blur", () => (held = null)); // never keep walking in a window you left
+  focus.addEventListener("blur", () => (held = null)); // nor after leaving the board
 
   for (const button of document.querySelectorAll(".pad button")) {
     const dir = Number(button.dataset.dir);
@@ -302,4 +328,6 @@
       }
     });
   }
+
+  connect();
 })();

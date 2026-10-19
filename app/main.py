@@ -7,6 +7,7 @@ import hmac
 import html
 import json
 import os
+import re
 import secrets
 import time
 from contextlib import asynccontextmanager
@@ -157,9 +158,18 @@ async def home(request: Request):
     return remember(request, templates.TemplateResponse(request, "game.html", {}), me, new)
 
 
+REPO = "https://github.com/comp4020-agentic-coding-studio/comp4020-final-peacefulmind43/blob/main/"
+
+
+def repo_links(html_text: str) -> str:
+    """The README links to files in the repo (doc/adr/...). Those files are on
+    GitHub, not on this site, so on /readme/ the links point there."""
+    return re.sub(r'href="(?![a-z]+:|/|#)([^"]+)"', lambda m: f'href="{REPO}{m.group(1)}"', html_text)
+
+
 @app.get("/readme/", response_class=HTMLResponse)
 async def readme(request: Request):
-    body = markdown.markdown((ROOT / "README.md").read_text(), extensions=["fenced_code", "tables"])
+    body = repo_links(markdown.markdown((ROOT / "README.md").read_text(), extensions=["fenced_code", "tables"]))
     with db.connect() as conn:
         activity.record(conn, "readme", request.cookies.get(COOKIE))
     return templates.TemplateResponse(request, "readme.html", {"body": body})

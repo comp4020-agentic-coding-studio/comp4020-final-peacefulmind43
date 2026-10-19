@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% block skip %}<a class="skip" href="#board">Skip to the board</a>{% endblock %}
 {% block main %}
 <h1>Capture the flag</h1>
 <p class="lead">Two teams on a small grid. Step on the other team's flag, then carry it back to your base to score.
@@ -6,7 +7,7 @@
   Everyone chooses a move each turn, and the turn plays out once everyone has chosen (or after 2 seconds),
   so there's time to think. Need longer? Anyone in the match can press Pause (or P), with no time limit,
   and press again to carry on. Empty seats are played by bots: play alone with a bot teammate, or with friends,
-  since anyone who opens this page joins the same game.</p>
+  since anyone who opens this page joins the same game. To try it with two people, open a second window.</p>
 
 <p class="watch-link"><a href="/?watch">Watch the trained bot play the scripted bot</a> · <a href="/">Play</a></p>
 
@@ -25,12 +26,12 @@
   </div>
 
   <div class="board-wrap">
-    <div class="board" tabindex="0" data-field="board-focus"
+    <div class="board" id="board" tabindex="0" data-field="board-focus"
          aria-label="Game board. Use the arrow keys or W A S D to choose a move, space to stand still. Hold a key to keep walking.">
       <svg data-field="board" role="img" aria-label="The map, the players and the flags" viewBox="0 0 16 10"
            preserveAspectRatio="xMidYMid meet"></svg>
     </div>
-    <p class="board-hint">Click the board, then choose a move with the arrow keys or W A S D (space stands still).
+    <p class="board-hint">Click the board or Tab to it, then choose a move with the arrow keys or W A S D (space stands still).
       Hold a key to keep walking, one step a turn.</p>
   </div>
 
@@ -55,7 +56,9 @@
 <p class="note">Every move is recorded with an anonymous name (never your cookie), so matches can be replayed and the bots
   can be judged against how people really play. See <a href="/log">what's being recorded</a>.
   Your bot teammate is picked at random each match, the scripted bot or one of the trained bots, and always named;
-  see <a href="/study">which one helps people score</a>.</p>
+  see <a href="/study">which one helps people score</a>. When you play, the team with no person in it gets a weaker
+  bot, so the match is close to even. Your finished matches are in <a href="/me">Your matches</a>, and
+  <a href="/readme/">About</a> says what this game is for.</p>
 <noscript><p>The game runs in your browser and needs JavaScript.</p></noscript>
 <script src="{{ asset("board.js") }}" defer></script>
 <script src="{{ asset("game.js") }}" defer></script>

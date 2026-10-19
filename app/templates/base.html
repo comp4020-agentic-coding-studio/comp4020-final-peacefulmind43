@@ -4,9 +4,11 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}Capture the flag{% endblock %}</title>
+  <link rel="icon" href="data:,">
   <link rel="stylesheet" href="{{ asset("style.css") }}">
 </head>
 <body>
+  {% block skip %}{% endblock %}
   <header class="site">
     <a class="brand" href="/">Capture the flag</a>
     <nav aria-label="Main"><a href="/">Play</a> <a href="/me">Your matches</a> <a href="/study">Bot teammates</a> <a href="/log">Activity</a> <a href="/readme/">About</a></nav>

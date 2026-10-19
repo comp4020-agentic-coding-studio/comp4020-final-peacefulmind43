@@ -64,6 +64,9 @@
       }
       const wrap = document.createElement("div");
       wrap.className = "table-wrap";
+      wrap.tabIndex = 0; // it may scroll sideways on a phone, so a keyboard must reach it
+      wrap.setAttribute("role", "region");
+      wrap.setAttribute("aria-label", `Seats in ${a.arena}`);
       wrap.append(table);
       box.append(wrap);
       return box;

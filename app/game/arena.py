@@ -413,7 +413,8 @@ class Hall:
                 arena.tell_all("moment", {"kind": "reclaim", "seat": i, "label": label(visitor_id)})
             if back and self.on_log:
                 self.on_log("reclaim", visitor_id, arena.where(i))
-        page.send("snapshot", arena.snapshot(visitor_id))
+        # "returning": they had this seat already, so the page says so (ADR 0011)
+        page.send("snapshot", {**arena.snapshot(visitor_id), "returning": returning and i is not None})
         return arena, page
 
     def place_in_shared(self, visitor_id: str) -> Arena:
