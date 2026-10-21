@@ -125,7 +125,7 @@ understands it. At crit 11 a classmate said the game was hard to follow.
 The rules were one long paragraph above the board, mixed with timing,
 pause and bots. Now the game page opens with four short rules: which token
 is you, how to score, who catches whom, and first to 3. The rest comes
-after them. On a phone the board moves to the top, so the rules move up
+after them, since [d0b86fc](https://github.com/comp4020-agentic-coding-studio/comp4020-final-peacefulmind43/commit/d0b86fc). On a phone the board moves to the top, so the rules move up
 with it. A spec test checks that the rules are short and come before the
 board.
 
