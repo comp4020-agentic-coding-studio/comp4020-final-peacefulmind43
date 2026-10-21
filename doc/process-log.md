@@ -847,3 +847,28 @@ boxes and every /readme/ link.
 I kept /study, because README point 4 needs it. It now shows the real
 teammate evaluation from `doc/rl/fcp1-eval.txt` above the live counts, which
 are still very few, and a test checks its numbers against the file.
+
+## 2026-10-21: the short rules go first
+
+At crit 11 a classmate said the game was hard to understand. The rules were
+one long paragraph at the top of the game page, and the scoring rule was
+mixed in with the turn timing, Pause, bots and second windows. A newcomer had
+to read all of it to find out what to do.
+
+The game page now opens with "How to play", four numbered rules: you are the
+gold-ringed token and move with the arrow keys, W A S D or the pad; walk onto
+the other team's flag and bring it back to your base; on your half you catch
+an enemy you touch, on theirs they catch you; first team to 3 wins. Timing,
+Pause and bots follow in a shorter paragraph. The hint under the board no
+longer says to click the board first, since keys work anywhere since f78d2f0.
+
+The first phone screenshot showed a problem. Below 700 px the CSS moves the
+board above everything else, so the new rules ended up under the whole game,
+where a newcomer would not see them. The rules now move up with the board
+and come first on a phone too.
+
+`spec/pages.test.ts` has "puts the short rules at the top of the game page,
+before the board". It checks for three to five rules, each at most 20 words,
+that mention the flag, catching and the arrow keys, and that the rules come
+before the board. My first rule failed it at 22 words, so I cut it. The
+rules of the game did not change, so RULES_VERSION stays.

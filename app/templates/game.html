@@ -2,12 +2,19 @@
 {% block skip %}<a class="skip" href="#board">Skip to the board</a>{% endblock %}
 {% block main %}
 <h1>Capture the flag</h1>
-<p class="lead">Two teams on a small grid. Step on the other team's flag, then carry it back to your base to score.
-  On your own half you catch anyone from the other team you touch; on theirs, they catch you.
-  Everyone chooses a move each turn, and the turn plays out once everyone has chosen (or after 2 seconds),
-  so there's time to think. Need longer? Anyone in the match can press Pause (or P), with no time limit,
-  and press again to carry on. Empty seats are played by bots: play alone with a bot teammate, or with friends,
-  since anyone who opens this page joins the same game. To try it with two people, open a second window.</p>
+<section class="rules" aria-labelledby="rules-heading">
+  <h2 id="rules-heading">How to play</h2>
+  <ol>
+    <li>You are the gold-ringed token. Move with the arrow keys, W A S D, or the pad.</li>
+    <li>Walk onto the other team's flag, then bring it back to your base.</li>
+    <li>On your half, touch an enemy to catch them. On their half, they catch you.</li>
+    <li>First team to 3 wins.</li>
+  </ol>
+</section>
+
+<p class="lead">Everyone moves at once, when all have chosen or after 2 seconds. Press Pause (or P) to stop
+  for as long as you like. Bots fill the empty seats, and anyone who opens this page joins the same game:
+  to try it with two people, open a second window.</p>
 
 <p class="watch-link"><a href="/?watch">Watch the trained bot play the scripted bot</a> · <a href="/">Play</a></p>
 
@@ -31,7 +38,7 @@
       <svg data-field="board" role="img" aria-label="The map, the players and the flags" viewBox="0 0 16 10"
            preserveAspectRatio="xMidYMid meet"></svg>
     </div>
-    <p class="board-hint">Click the board or Tab to it, then choose a move with the arrow keys or W A S D (space stands still).
+    <p class="board-hint">Arrow keys or W A S D choose a move (space stands still).
       Hold a key to keep walking, one step a turn.</p>
   </div>
 

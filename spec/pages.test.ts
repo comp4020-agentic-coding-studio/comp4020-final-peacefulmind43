@@ -27,6 +27,21 @@ it("tells a newcomer on /readme/ how to play and where their matches are", async
   expect(text).toMatch(/second window/i);
 });
 
+it("puts the short rules at the top of the game page, before the board", async () => {
+  const doc = await page("/");
+  const rules = [...doc.querySelectorAll(".rules li")].map((li) => li.textContent ?? "");
+  expect(rules.length, "a few short rules").toBeGreaterThanOrEqual(3);
+  expect(rules.length).toBeLessThanOrEqual(5);
+  for (const r of rules) expect(r.split(/\s+/).length, r).toBeLessThanOrEqual(20);
+  const text = rules.join(" ");
+  expect(text).toMatch(/flag/);
+  expect(text).toMatch(/catch/);
+  expect(text).toMatch(/arrow keys/);
+  const board = doc.querySelector("#board")!;
+  const before = doc.querySelector(".rules")!.compareDocumentPosition(board) & 4; // DOCUMENT_POSITION_FOLLOWING
+  expect(before, "the rules come before the board").toBeTruthy();
+});
+
 it("makes every move on the pad a real button with a name, and the board reachable by Tab", async () => {
   const doc = await page("/");
   const pad = [...doc.querySelectorAll(".pad > *")];

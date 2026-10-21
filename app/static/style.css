@@ -37,6 +37,9 @@ a { color: var(--accent); }
 h1 { font-size: 1.75rem; line-height: 1.2; margin-top: 1.5rem; }
 h2 { font-size: 1.2rem; margin-top: 2rem; }
 .lead { font-size: 1.05rem; color: var(--muted); }
+.rules h2 { margin-top: 1rem; }
+.rules ol { padding-left: 1.5rem; font-size: 1.05rem; }
+.rules li { margin-block: 0.25rem; }
 
 button {
   margin-top: 0.75rem;
@@ -139,6 +142,10 @@ table.my-matches td { white-space: normal; vertical-align: top; }
   main:has(> section.game:not(.replay)) { display: flex; flex-direction: column; }
   main:has(> section.game:not(.replay)) > h1 { order: -2; font-size: 1.3rem; margin: 0.75rem 0 0; }
   main > section.game:not(.replay) { order: -1; }
+  main > section.rules { order: -2; }
+  .rules h2 { margin-top: 0.5rem; font-size: 1rem; }
+  .rules ol { margin: 0.25rem 0; font-size: 0.95rem; }
+  .rules li { margin-block: 0.1rem; }
   header.site { padding-block: 0.5rem; }
   .scorebar { margin-top: 0.25rem; }
   .game h3 { margin: 0.75rem 0 0.25rem; }

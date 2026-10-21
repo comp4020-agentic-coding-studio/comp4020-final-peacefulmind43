@@ -120,6 +120,15 @@ by testing a stand-in program on 400 unseen maps per opponent. Driving the
 app in Chrome with two profiles found six problems, such as keys that did
 nothing until you clicked the board, fixed in [f78d2f0](https://github.com/comp4020-agentic-coding-studio/comp4020-final-peacefulmind43/commit/f78d2f0).
 
+A browser pass checks that the page works, not that a newcomer
+understands it. At crit 11 a classmate said the game was hard to follow.
+The rules were one long paragraph above the board, mixed with timing,
+pause and bots. Now the game page opens with four short rules: which token
+is you, how to score, who catches whom, and first to 3. The rest comes
+after them. On a phone the board moves to the top, so the rules move up
+with it. A spec test checks that the rules are short and come before the
+board.
+
 For the RL work I measured first. A profile showed 92% of the time in
 path searches. Caching them in
 [ec7237e](https://github.com/comp4020-agentic-coding-studio/comp4020-final-peacefulmind43/commit/ec7237e)
@@ -151,8 +160,9 @@ That is why the game has no accounts, chat or ranking.
 Nelson Elhage's
 ["Situated Social Software"](https://buttondown.com/nelhage/archive/situated-social-software/)
 argues that small groups mostly use general tools, and my own crit backs
-him up. At crit 9 my pod did not open each other's sites, so I have no pod
-feedback and little human data. So I don't claim smallness itself is
+him up. At crit 9 my pod did not open each other's sites, and since then
+one classmate's comment is most of my feedback, so I have little human
+data. So I don't claim smallness itself is
 the value.
 
 The game page is the home-cooked part. The RL work is not. What this game adds is the question of a fair
