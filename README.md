@@ -3,7 +3,7 @@
 A capture-the-flag game where people and bots share teams.
 Open [the game](https://comp4020-final-peacefulmind43.fly.dev/) to
 join anyone there. Move with the arrow keys or W A S D, or tap
-the pad on a phone. To play together, open a second window. Your
+the pad on a phone. To play together, use two Chrome profiles. Your
 matches and replays are at [/me](https://comp4020-final-peacefulmind43.fly.dev/me).
 
 ## Who it is for

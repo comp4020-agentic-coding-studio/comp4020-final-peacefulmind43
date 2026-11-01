@@ -872,3 +872,20 @@ before the board". It checks for three to five rules, each at most 20 words,
 that mention the flag, catching and the arrow keys, and that the rules come
 before the board. My first rule failed it at 22 words, so I cut it. The
 rules of the game did not change, so RULES_VERSION stays.
+
+## 2026-11-01: two players means two Chrome profiles
+
+The course said markers will test with two people in separate Chrome
+profiles. That made me check my own advice. The README and the game page
+said "open a second window" to play together. But a seat belongs to the
+visitor cookie, and a second window in the same profile has the same cookie.
+The arena finds that visitor's seat and gives the new window the same seat
+(`app/game/arena.py`, `arrive`). So someone following my advice would see
+one player, not two, and think the multi-user part was broken.
+
+The README now says to use two Chrome profiles. The game page says to use a
+second Chrome profile or a private window, and that two tabs in one profile
+are one player. Nothing in the game changed. `spec/pages.test.ts` now looks
+for "two Chrome profiles" on /readme/, and a new check, "tells people on the
+game page that a second player needs a second Chrome profile", looks for
+both sentences on the game page.

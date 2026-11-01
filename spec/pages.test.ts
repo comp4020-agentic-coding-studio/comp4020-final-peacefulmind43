@@ -24,7 +24,7 @@ it("tells a newcomer on /readme/ how to play and where their matches are", async
   expect(links.some((h) => h.endsWith("/me")), "a link to your matches").toBe(true);
   const text = body.textContent ?? "";
   expect(text).toMatch(/arrow keys/i);
-  expect(text).toMatch(/second window/i);
+  expect(text).toMatch(/two Chrome profiles/i);
 });
 
 it("puts the short rules at the top of the game page, before the board", async () => {
@@ -40,6 +40,13 @@ it("puts the short rules at the top of the game page, before the board", async (
   const board = doc.querySelector("#board")!;
   const before = doc.querySelector(".rules")!.compareDocumentPosition(board) & 4; // DOCUMENT_POSITION_FOLLOWING
   expect(before, "the rules come before the board").toBeTruthy();
+});
+
+it("tells people on the game page that a second player needs a second Chrome profile", async () => {
+  const doc = await page("/");
+  const text = doc.querySelector(".lead")?.textContent ?? "";
+  expect(text).toMatch(/second Chrome profile/i);
+  expect(text, "a second tab is not a second player").toMatch(/two tabs in one profile are one player/i);
 });
 
 it("makes every move on the pad a real button with a name, and the board reachable by Tab", async () => {
